@@ -12,12 +12,12 @@ export type ItemMenu = {
 export const MENU: ItemMenu[] = [
   { modulo: "PAINEL", rotulo: "Painel", href: "/", entrega: 1 },
   { modulo: "FUNIL", rotulo: "Funil", href: "/funil", entrega: 3 },
-  { modulo: "CLIENTES", rotulo: "Clientes", href: "/clientes", entrega: 2 },
+  { modulo: "CLIENTES", rotulo: "Clientes", href: "/clientes", entrega: 1 },
   { modulo: "VISITAS", rotulo: "Visitas", href: "/visitas", entrega: 4 },
   { modulo: "SOLICITACOES", rotulo: "Solicitações", href: "/solicitacoes", entrega: 4 },
   { modulo: "MAPA_COMERCIALIZACAO", rotulo: "Mapa de comercialização", href: "/mapa", entrega: 4 },
-  { modulo: "CADASTROS", rotulo: "Cadastros", href: "/cadastros", entrega: 2 },
-  { modulo: "USUARIOS", rotulo: "Usuários", href: "/usuarios", entrega: 2 },
+  { modulo: "CADASTROS", rotulo: "Cadastros", href: "/cadastros", entrega: 1 },
+  { modulo: "USUARIOS", rotulo: "Usuários", href: "/usuarios", entrega: 1 },
 ];
 
 export function menuPermitido(modulos: readonly Modulo[]): ItemMenu[] {
