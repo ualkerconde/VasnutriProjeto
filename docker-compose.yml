@@ -1,0 +1,19 @@
+# Banco PostgreSQL para desenvolvimento local.
+services:
+  banco:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vasnutri
+      POSTGRES_PASSWORD: vasnutri
+      POSTGRES_DB: vasnutri
+    ports:
+      - "5432:5432"
+    volumes:
+      - dados-banco:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vasnutri"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  dados-banco:
