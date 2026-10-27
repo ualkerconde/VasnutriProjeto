@@ -64,7 +64,7 @@ export default async function DetalheProcesso({ params }: PageProps<"/funil/[id]
             const feita = etapa !== ETAPA.RECUSADOS && e.id < etapa;
             const atual = e.id === etapa;
             return (
-              <li key={e.id} className="flex flex-1 flex-col gap-1.5" title={e.nome}>
+              <li key={e.id} className="flex min-w-0 flex-1 basis-0 flex-col gap-1.5" title={e.nome}>
                 <span className={`h-1.5 rounded-full ${atual ? "bg-menta" : feita ? "bg-verde" : "bg-linha"}`} />
                 <span className={`truncate text-[11px] ${atual ? "font-bold text-texto" : "text-suave"}`}>
                   {e.id}. {e.nome}

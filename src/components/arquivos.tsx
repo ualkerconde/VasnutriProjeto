@@ -17,7 +17,7 @@ export function ItemArquivo({
       <a href={`/arquivos/${arquivo.id}`} target="_blank" rel="noopener" className="flex size-16 flex-none items-center justify-center overflow-hidden rounded-lg bg-linha-suave text-xs font-bold text-suave">
         {imagem ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/arquivos/${arquivo.id}`} alt={arquivo.descricao ?? "Foto"} className="size-full object-cover" loading="lazy" />
+          <img src={`/arquivos/${arquivo.id}`} alt={arquivo.descricao ?? "Foto"} className="size-full object-cover text-[0px]" loading="lazy" />
         ) : (
           (arquivo.mime?.split("/")[1] ?? "arq").slice(0, 4).toUpperCase()
         )}

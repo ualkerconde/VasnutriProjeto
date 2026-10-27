@@ -70,7 +70,7 @@ const estilosBotao = {
 export type VarianteBotao = keyof typeof estilosBotao;
 
 export function classeBotao(variante: VarianteBotao = "primario", pequeno = false) {
-  return `inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold whitespace-nowrap transition-colors disabled:cursor-wait disabled:opacity-70 ${
+  return `inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl text-center font-semibold transition-colors disabled:cursor-wait disabled:opacity-70 ${
     pequeno ? "min-h-9 px-3 text-[13px]" : "min-h-11 px-4 text-sm"
   } ${estilosBotao[variante]}`;
 }

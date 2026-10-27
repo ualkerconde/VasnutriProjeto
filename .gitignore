@@ -45,3 +45,5 @@ next-env.d.ts
 
 # arquivos enviados pelo sistema (fotos e anexos)
 /armazenamento
+/migracao-relatorio.txt
+/appsheet.xlsx

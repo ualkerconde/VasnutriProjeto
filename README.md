@@ -48,16 +48,80 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 | `npm run db:deploy` | Aplica migrações em produção |
 | `npm run db:seed` | Dados iniciais (pode rodar de novo sem duplicar) |
 | `npm run db:studio` | Abre o Prisma Studio para ver os dados |
+| `npm run migrar -- arquivo.xlsx` | Migração do AppSheet (veja abaixo) |
+
+## O que o sistema faz
+
+| Tela | Para quê |
+| --- | --- |
+| Painel | Processos por etapa, tempo médio em cada etapa, visitas do ciclo e avisos pendentes |
+| Funil | Quadro com as 12 etapas; cada processo tem orçamento, contrato, checklist, histórico, mudança e retorno de etapa |
+| Processo (parte técnica) | Coleta de dados com setores, visitas, plano de ação, pedidos de documento, placas, fotos e anexos |
+| Clientes | Cadastro com CNPJ, endereço, contatos, serviços e gestor; "ativo" vem do contrato vigente |
+| Visitas | Clientes na etapa 11 com visitas feitas x esperadas no ciclo e atrasos |
+| Solicitações | Pedidos ao escritório com responsável, prazo, validação e anexos |
+| Mapa de comercialização | Quem já pediu o mapa no ciclo, com botão para reiniciar o ciclo |
+| Notificações | Mudanças de etapa, orçamento parado, contrato ou documento vencendo, visita atrasada, prazos |
+| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis e configurações |
+| Usuários | Usuários, perfis, ativar/desativar e redefinir senha |
+
+Os avisos automáticos são gerados quando alguém abre o sistema (no máximo uma vez por hora),
+então não é preciso agendador no servidor. Os prazos ficam em Cadastros > Configurações.
+
+## Fotos e anexos
+
+Os arquivos enviados ficam na pasta `armazenamento/` do projeto (ou na pasta definida em
+`ARQUIVOS_DIR` no `.env`). O banco guarda só o caminho. Faça backup dessa pasta junto com o banco.
+
+## Migração dos dados do AppSheet
+
+A planilha do AppSheet não é alterada: o script lê uma cópia baixada.
+
+1. No Google Planilhas, abra a planilha do AppSheet e use **Arquivo > Fazer download > Microsoft Excel (.xlsx)**.
+2. Salve o arquivo na pasta do projeto como `appsheet.xlsx`.
+3. Com o banco recém-criado (`npm run db:migrate` e `npm run db:seed`), simule a migração:
+
+```powershell
+npm run migrar -- appsheet.xlsx
+```
+
+4. Leia o relatório (também salvo em `migracao-relatorio.txt`). Se estiver tudo certo, grave:
+
+```powershell
+npm run migrar -- appsheet.xlsx --aplicar
+```
+
+O que o script faz:
+
+- Usuários vêm da aba `usuarios`, **sem as senhas**. O perfil sai das telas que cada um via
+  (Gestão dos usuários = Administrador, Comercial = Comercial, senão Técnico). Depois da migração,
+  defina uma senha para cada um em Usuários > Redefinir senha.
+- Clientes vêm das abas `Clientes`, `baseprincipal` e `solicitacaoEscritorio`, juntados pelo CNPJ.
+- Cada linha da `baseprincipal` vira um processo com o mesmo nº de orçamento; as colunas Sim/Não
+  viram itens do checklist; o histórico vem da aba `historico`.
+- Nomes digitados em "Responsável" são ligados ao usuário quando o primeiro nome bate
+  (ex.: "Pedro Tirello" → pedro@...). Quando não bate, o texto fica nas observações.
+- Coleta de dados, setores, visitas, plano de ação, placas, documentos, solicitações,
+  mapa de comercialização, anexos, fotos e atividades também são migrados.
+- Linhas que apontam para um processo que não existe mais (testes antigos) são puladas e listadas no relatório.
+- Só roda num funil vazio e só pode ser gravada uma vez, para não duplicar dados.
+
+Fotos e anexos: o AppSheet guarda os arquivos no Google Drive, em pastas como `anexos_Files_`,
+`anexos_Images` e `fotos_Images` (dentro da pasta do app). Baixe essas pastas e copie para
+`armazenamento/appsheet/`, mantendo os nomes. O relatório avisa quantos arquivos ainda faltam.
 
 ## Organização
 
 ```
-prisma/schema.prisma      modelo de dados completo (todas as entregas)
+prisma/schema.prisma      modelo de dados
 prisma/seed.ts            dados iniciais
+scripts/migrar-appsheet.ts migração da planilha do AppSheet
 src/app/login             tela de login
-src/app/(app)             telas logadas (menu lateral + painel)
+src/app/(app)             telas logadas (menu lateral)
+src/app/(app)/funil       funil, processo e parte técnica
+src/lib/funil             regras e mudança de etapa
+src/lib/alertas.ts        avisos automáticos
 src/lib/auth              sessão, login e permissões
-src/lib/modulos.ts        menu e módulos por perfil
 ```
 
 ## Perfis
@@ -68,21 +132,15 @@ src/lib/modulos.ts        menu e módulos por perfil
 | Comercial | Painel, Funil, Clientes, Solicitações, Mapa de comercialização |
 | Técnico | Painel, Funil, Clientes, Visitas, Solicitações |
 
-## Regras de negócio já no modelo
+Os módulos de cada perfil podem ser mudados em Cadastros > Perfis.
+
+## Regras de negócio
 
 - Número do orçamento gerado pelo banco (sem repetição).
-- Valor do contrato visível só nas etapas marcadas com `exibe_valor_contrato` (1 a 4).
-- Checklist por etapa em tabela (não mais colunas fixas).
-- Ciclos de contrato (`processo_ciclos`): na etapa 11, visitas periódicas; no fim, após
-  confirmação de uma pessoa, o processo volta para a etapa 7.
-- "Um processo ativo por cliente" é uma configuração (`configuracoes`), não uma trava do banco.
+- Só passa do Comercial com o orçamento aprovado, e só sai do Agendamento de treinamento com o treinamento feito.
+- Valor do contrato visível só nas etapas 1 a 4.
+- Ciclos de contrato: na etapa 11 as visitas são contadas por ciclo; no fim do contrato, uma pessoa
+  confirma o encerramento e o processo volta para o Agendamento de diagnóstico.
+- Recusa sempre com motivo cadastrado; orçamento recusado pode ser recuperado.
+- "Um processo ativo por cliente" é uma configuração, não uma trava do banco.
 - O log de acessos nunca guarda senha.
-
-## Plano de entregas
-
-1. **Base, banco e login com perfis** (esta)
-2. Cadastros: clientes, usuários, motivos de recusa, etapas e checklist
-3. Funil: processos, mudança de etapa com histórico, orçamento
-4. Parte técnica: coleta de dados, setores, visitas, plano de ação, solicitações e arquivos
-5. Ciclos do contrato e notificações
-6. Migração da planilha do AppSheet

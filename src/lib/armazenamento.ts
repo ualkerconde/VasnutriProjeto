@@ -8,7 +8,7 @@ import path from "node:path";
 const TAMANHO_MAXIMO = 15 * 1024 * 1024;
 
 function raiz() {
-  return path.resolve(process.env.ARQUIVOS_DIR || "armazenamento");
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.ARQUIVOS_DIR || "armazenamento");
 }
 
 function caminhoSeguro(relativo: string) {

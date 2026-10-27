@@ -83,10 +83,18 @@ export async function tratar(fn: () => Promise<EstadoForm | void>): Promise<Esta
     return (await fn()) ?? { ok: "Salvo." };
   } catch (erro) {
     if (erro instanceof ErroValidacao) return { erro: erro.message };
-    if (temCodigo(erro, "P2002")) return { erro: "Já existe um registro com esse valor." };
+    if (temCodigo(erro, "P2002")) return { erro: mensagemDuplicado(erro) };
     if (temCodigo(erro, "P2003")) return { erro: "Este registro está em uso e não pode ser apagado." };
     throw erro;
   }
+}
+
+function mensagemDuplicado(erro: unknown) {
+  const detalhe = JSON.stringify((erro as { meta?: unknown }).meta ?? {});
+  if (detalhe.includes("cnpj")) return "Já existe um cliente com esse CNPJ.";
+  if (detalhe.includes("email")) return "Já existe um usuário com esse e-mail.";
+  if (detalhe.includes("nome") || detalhe.includes("descricao")) return "Já existe um item com esse nome.";
+  return "Já existe um registro com esse valor.";
 }
 
 function temCodigo(erro: unknown, codigo: string): boolean {
