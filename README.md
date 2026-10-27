@@ -13,16 +13,28 @@ checklist por etapa, ciclos de contrato e notificações.
 
 ## Rodando no computador
 
-Requisitos: Node.js 22+ e Docker (ou um PostgreSQL 16 já instalado).
+Requisitos: Git, Node.js 22+ e Docker Desktop aberto (ou um PostgreSQL 16 já instalado).
+
+Rode um comando por vez. Primeiro, crie o `.env` a partir do exemplo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+No Mac ou Linux, o equivalente é `cp .env.example .env`. Ajuste `ADMIN_EMAIL` e `ADMIN_SENHA` no `.env` se quiser. Depois:
 
 ```bash
-cp .env.example .env          # ajuste ADMIN_EMAIL e ADMIN_SENHA
-docker compose up -d          # sobe o banco
+docker compose up -d
 npm install
-npm run db:migrate            # cria as tabelas
-npm run db:seed               # etapas, checklist, perfis e o primeiro administrador
-npm run dev                   # http://localhost:3000
+npm run db:migrate
+npm run db:seed
+npm run dev
 ```
+
+Abra http://localhost:3000 e entre com o e-mail e a senha do administrador definidos no `.env`.
+
+O banco do Docker usa a porta **5433** do computador, para não conflitar com um PostgreSQL
+já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_URL` no `.env`.
 
 ## Comandos
 

@@ -6,6 +6,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import type { Modulo } from "../src/generated/prisma/enums";
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL não definida. Copie .env.example para .env (veja o README).");
+}
+
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 // Aba "fluxo" do AppSheet. O valor do contrato só aparece até a etapa 4.
