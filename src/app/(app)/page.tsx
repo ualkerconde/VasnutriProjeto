@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { BotaoAcao } from "@/components/formulario";
+import { Cartao, Selo, Tabela } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
+import { fmtData, tempoRelativo } from "@/lib/datas";
 import { dataPorExtenso, formatarDias, primeiroNome, saudacao } from "@/lib/formato";
+import { linkDaNotificacao } from "@/lib/notificacoes";
 import { dadosDoPainel } from "@/lib/painel";
+import { situacaoCiclo } from "@/lib/visitas";
+import { abrirNotificacao } from "./notificacoes/acoes";
 
 export const metadata: Metadata = { title: "Painel" };
 
@@ -13,10 +20,24 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
   const maior = Math.max(1, ...dados.funil.map((l) => l.quantidade));
 
   const indicadores = [
-    { rotulo: "Processos em andamento", valor: dados.emAndamento, nota: "Etapas 1 a 11", selo: "FUNIL", escuro: true },
-    { rotulo: "Orçamentos aguardando", valor: dados.orcamentosAguardando, nota: "Esperando aprovação do cliente", selo: "ETAPA 2" },
-    { rotulo: "Clientes cadastrados", valor: dados.clientes, nota: "Carteira completa", selo: "CADASTRO" },
-    { rotulo: "Notificações novas", valor: dados.naoLidas, nota: "Não lidas por você", selo: "AVISOS", alerta: dados.naoLidas > 0 },
+    { rotulo: "Processos em andamento", valor: dados.emAndamento, nota: `${dados.clientes} cliente(s) cadastrados`, selo: "FUNIL", escuro: true, href: "/funil" },
+    { rotulo: "Orçamentos aguardando", valor: dados.orcamentosAguardando, nota: "Esperando aprovação do cliente", selo: "ETAPA 2", href: "/funil" },
+    {
+      rotulo: "Visitas atrasadas",
+      valor: dados.clientesComVisitaAtrasada,
+      nota: "Clientes abaixo do contratado no ciclo",
+      selo: "ETAPA 11",
+      alerta: dados.clientesComVisitaAtrasada > 0,
+      href: "/visitas",
+    },
+    {
+      rotulo: "Solicitações vencidas",
+      valor: dados.solicitacoesVencidas,
+      nota: "Escritório, em aberto com prazo passado",
+      selo: "PRAZO",
+      alerta: dados.solicitacoesVencidas > 0,
+      href: "/solicitacoes",
+    },
   ];
 
   return (
@@ -38,7 +59,8 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
 
       <section aria-label="Indicadores" className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {indicadores.map((k, i) => (
-          <article
+          <Link
+            href={k.href}
             key={k.rotulo}
             style={{ animationDelay: `${i * 60}ms` }}
             className={`animate-subir flex flex-col gap-3.5 rounded-[22px] p-[22px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-12px_rgb(11_22_18/0.25)] ${
@@ -57,7 +79,7 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
             </div>
             <span className="font-display text-[52px] leading-none font-extrabold tracking-[-0.04em]">{k.valor}</span>
             <span className={`text-[13px] ${k.escuro ? "text-claro-2" : "text-suave"}`}>{k.nota}</span>
-          </article>
+          </Link>
         ))}
       </section>
 
@@ -95,9 +117,14 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
         </section>
 
         <section aria-labelledby="titulo-voce" className="min-w-0 flex-[1_1_320px] rounded-[22px] bg-tinta p-6 text-claro">
-          <h2 id="titulo-voce" className="mb-4 font-display text-[22px] font-bold tracking-[-0.02em]">
-            Precisa de você
-          </h2>
+          <div className="mb-4 flex items-baseline justify-between gap-2">
+            <h2 id="titulo-voce" className="font-display text-[22px] font-bold tracking-[-0.02em]">
+              Precisa de você
+            </h2>
+            <Link href="/notificacoes" className="text-[13px] font-semibold text-menta">
+              Ver todas{dados.naoLidas > 0 ? ` (${dados.naoLidas})` : ""}
+            </Link>
+          </div>
           {dados.notificacoes.length === 0 ? (
             <p className="rounded-[14px] bg-claro/5 p-4 text-sm text-claro-2">
               Nada pendente agora. Avisos de prazos, vencimentos e etapas aparecem aqui.
@@ -105,18 +132,69 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
           ) : (
             <ul className="flex flex-col gap-2.5">
               {dados.notificacoes.map((n) => (
-                <li key={n.id} className="flex gap-3 rounded-[14px] bg-claro/5 p-3.5">
+                <li key={n.id} className="flex items-start gap-3 rounded-[14px] bg-claro/5 p-3.5">
                   <span className="mt-1.5 size-2.5 flex-none rounded-full bg-ambar" />
-                  <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-sm leading-snug font-semibold">{n.titulo}</span>
-                    {n.mensagem && <span className="text-[13px] leading-snug text-claro-2">{n.mensagem}</span>}
+                    <span className="text-[13px] leading-snug text-claro-2">
+                      {n.mensagem && `${n.mensagem} · `}
+                      {tempoRelativo(n.criadoEm, agora)}
+                    </span>
                   </span>
+                  {linkDaNotificacao(n) && (
+                    <BotaoAcao acao={abrirNotificacao.bind(null, n.id)} variante="menta">
+                      Abrir
+                    </BotaoAcao>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </section>
       </div>
+
+      {usuario.modulos.includes("VISITAS") && dados.ciclos.length > 0 && (
+        <Cartao
+          titulo="Visitas técnicas · ciclo atual"
+          acoes={
+            <Link href="/visitas" className="text-sm font-semibold">
+              Ver todas
+            </Link>
+          }
+        >
+          <Tabela cabecalho={["Cliente", "Visitas no ciclo", "Última visita", "Fim do ciclo", "Situação"]}>
+            {dados.ciclos.slice(0, 6).map((c) => {
+              const sit = situacaoCiclo(c);
+              const pct = c.contratadas ? Math.min(100, Math.round((c.feitas / c.contratadas) * 100)) : 0;
+              return (
+                <tr key={c.processoId}>
+                  <td>
+                    <Link href={`/funil/${c.processoId}`} className="font-semibold hover:text-verde">
+                      {c.cliente}
+                    </Link>
+                  </td>
+                  <td>
+                    <span className="flex items-center gap-2.5">
+                      <span className="h-2 w-28 overflow-hidden rounded-full bg-linha-suave">
+                        <span className={`animate-crescer block h-full origin-left rounded-full ${c.atrasadas > 0 ? "bg-[#E0703F]" : "bg-menta"}`} style={{ width: `${pct}%` }} />
+                      </span>
+                      <span className="font-mono text-[13px] whitespace-nowrap">
+                        {c.feitas}
+                        {c.contratadas ? ` de ${c.contratadas}` : ""}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="text-texto-2">{fmtData(c.ultima)}</td>
+                  <td className="text-texto-2">{fmtData(c.ciclo?.fimPrevisto)}</td>
+                  <td>
+                    <Selo cor={sit.cor}>{sit.rotulo}</Selo>
+                  </td>
+                </tr>
+              );
+            })}
+          </Tabela>
+        </Cartao>
+      )}
     </>
   );
 }

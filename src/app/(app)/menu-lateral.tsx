@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Item = { href: string; rotulo: string; entrega: number };
+type Item = { href: string; rotulo: string; contador?: number };
 
 export function MenuLateral({ itens }: { itens: Item[] }) {
   const rota = usePathname();
@@ -25,11 +25,11 @@ export function MenuLateral({ itens }: { itens: Item[] }) {
             >
               <span className={ativo ? "size-1.5 rounded-full bg-tinta" : "size-1.5 rounded-full bg-claro-2/50"} />
               <span className="flex-1">{item.rotulo}</span>
-              {item.entrega > 1 && (
-                <span className={`hidden font-mono text-[10px] whitespace-nowrap lg:inline ${ativo ? "text-tinta/70" : "text-claro-3"}`}>
-                  em breve
+              {item.contador ? (
+                <span className={`rounded-full px-2 py-0.5 font-mono text-[11px] font-bold ${ativo ? "bg-tinta text-menta" : "bg-ambar text-tinta"}`}>
+                  {item.contador}
                 </span>
-              )}
+              ) : null}
             </Link>
           </li>
         );

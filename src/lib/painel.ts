@@ -1,5 +1,7 @@
 import "server-only";
+import { hoje } from "@/lib/datas";
 import { db } from "@/lib/db";
+import { ciclosEmAndamento } from "@/lib/visitas";
 
 export type LinhaFunil = {
   id: number;
@@ -11,7 +13,7 @@ export type LinhaFunil = {
 };
 
 export async function dadosDoPainel(usuarioId: string) {
-  const [etapas, porEtapa, medias, orcamentosAguardando, clientes, naoLidas, notificacoes] = await Promise.all([
+  const [etapas, porEtapa, medias, orcamentosAguardando, clientes, naoLidas, notificacoes, ciclos, solicitacoesVencidas] = await Promise.all([
     db.etapa.findMany({ orderBy: { ordem: "asc" } }),
     db.processo.groupBy({ by: ["etapaAtualId"], _count: { _all: true } }),
     db.$queryRaw<{ etapa_id: number; dias: number }[]>`
@@ -27,6 +29,8 @@ export async function dadosDoPainel(usuarioId: string) {
       orderBy: { criadoEm: "desc" },
       take: 5,
     }),
+    ciclosEmAndamento(),
+    db.solicitacaoEscritorio.count({ where: { status: "EM_ABERTO", prazo: { lt: hoje() } } }),
   ]);
 
   const quantidade = new Map(porEtapa.map((g) => [g.etapaAtualId, g._count._all]));
@@ -42,5 +46,17 @@ export async function dadosDoPainel(usuarioId: string) {
 
   const emAndamento = funil.filter((l) => !l.final).reduce((soma, l) => soma + l.quantidade, 0);
 
-  return { funil, emAndamento, orcamentosAguardando, clientes, naoLidas, notificacoes };
+  const clientesComVisitaAtrasada = ciclos.filter((c) => c.atrasadas > 0).length;
+
+  return {
+    funil,
+    emAndamento,
+    orcamentosAguardando,
+    clientes,
+    naoLidas,
+    notificacoes,
+    ciclos,
+    clientesComVisitaAtrasada,
+    solicitacoesVencidas,
+  };
 }
