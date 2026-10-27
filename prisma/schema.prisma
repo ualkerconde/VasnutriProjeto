@@ -1,0 +1,611 @@
+// Modelo de dados do sistema Vasnutri.
+// Origem: mapeamento do app AppSheet (planilha BasedeDados-Appsheet), seções 6 e 8.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Acesso ────────────────────────────────────────────────────────────────
+
+/// Áreas do sistema que um perfil pode acessar (substitui a coluna Telas e a aba menu).
+enum Modulo {
+  PAINEL
+  FUNIL
+  CLIENTES
+  VISITAS
+  SOLICITACOES
+  MAPA_COMERCIALIZACAO
+  CADASTROS
+  USUARIOS
+}
+
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  nome         String
+  email        String   @unique
+  senhaHash    String   @map("senha_hash")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  perfis                  UsuarioPerfil[]
+  sessoes                 Sessao[]
+  acessos                 AcessoLog[]
+  notificacoes            Notificacao[]
+  tarefas                 Tarefa[]
+  clientesGeridos         Cliente[]                @relation("ClienteGestor")
+  processosResponsavel    Processo[]               @relation("ProcessoResponsavel")
+  historicoResponsavel    ProcessoEtapaHistorico[]
+  checklistConcluido      ProcessoChecklist[]
+  ciclosEncerrados        ProcessoCiclo[]
+  visitas                 Visita[]
+  solicitacoesResponsavel SolicitacaoEscritorio[]  @relation("SolicitacaoResponsavel")
+  solicitacoesValidadas   SolicitacaoEscritorio[]  @relation("SolicitacaoValidador")
+  arquivosEnviados        Arquivo[]
+
+  @@map("usuarios")
+}
+
+model Perfil {
+  id         String            @id @default(uuid()) @db.Uuid
+  nome       String            @unique
+  descricao  String?
+  permissoes PerfilPermissao[]
+  usuarios   UsuarioPerfil[]
+
+  @@map("perfis")
+}
+
+model PerfilPermissao {
+  perfilId String @map("perfil_id") @db.Uuid
+  modulo   Modulo
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@id([perfilId, modulo])
+  @@map("perfil_permissoes")
+}
+
+model UsuarioPerfil {
+  usuarioId String  @map("usuario_id") @db.Uuid
+  perfilId  String  @map("perfil_id") @db.Uuid
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  perfil    Perfil  @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, perfilId])
+  @@map("usuario_perfis")
+}
+
+/// Sessão de login. Guardamos só o hash do token; o token fica no cookie do navegador.
+model Sessao {
+  id          String   @id @default(uuid()) @db.Uuid
+  tokenHash   String   @unique @map("token_hash")
+  usuarioId   String   @map("usuario_id") @db.Uuid
+  expiraEm    DateTime @map("expira_em")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+  ip          String?
+  dispositivo String?
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("sessoes")
+}
+
+/// Log de tentativas de login. Nunca guarda a senha digitada.
+model AcessoLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  usuarioId      String?  @map("usuario_id") @db.Uuid
+  emailInformado String   @map("email_informado")
+  dataHora       DateTime @default(now()) @map("data_hora")
+  sucesso        Boolean
+  ip             String?
+  dispositivo    String?
+  usuario        Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([dataHora])
+  @@map("acessos_log")
+}
+
+// ─── Cadastro ──────────────────────────────────────────────────────────────
+
+/// "Ativo" não é coluna: é calculado pelo processo com contrato assinado e dentro da validade.
+model Cliente {
+  id           String   @id @default(uuid()) @db.Uuid
+  razaoSocial  String?  @map("razao_social")
+  nomeFantasia String   @map("nome_fantasia")
+  cnpj         String?  @unique
+  logradouro   String?
+  numero       String?
+  complemento  String?
+  bairro       String?
+  cidade       String?
+  uf           String?  @db.Char(2)
+  cep          String?
+  observacaoNf String?  @map("observacao_nf")
+  gestorId     String?  @map("gestor_id") @db.Uuid
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  gestor                 Usuario?                @relation("ClienteGestor", fields: [gestorId], references: [id], onDelete: SetNull)
+  contatos               ClienteContato[]
+  servicos               ClienteServico[]
+  processos              Processo[]
+  solicitacoesEscritorio SolicitacaoEscritorio[]
+  solicitacoesMapa       SolicitacaoMapa[]
+
+  @@index([nomeFantasia])
+  @@map("clientes")
+}
+
+enum TipoContato {
+  EMAIL_NF
+  EMAIL_RELATORIO
+  TELEFONE
+  RESPONSAVEL_LEGAL
+  OUTRO
+}
+
+model ClienteContato {
+  id        String      @id @default(uuid()) @db.Uuid
+  clienteId String      @map("cliente_id") @db.Uuid
+  tipo      TipoContato
+  valor     String
+  nome      String?
+  cliente   Cliente     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId])
+  @@map("cliente_contatos")
+}
+
+model Servico {
+  id       String           @id @default(uuid()) @db.Uuid
+  nome     String           @unique
+  ativo    Boolean          @default(true)
+  clientes ClienteServico[]
+
+  @@map("servicos")
+}
+
+model ClienteServico {
+  clienteId String  @map("cliente_id") @db.Uuid
+  servicoId String  @map("servico_id") @db.Uuid
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  servico   Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@id([clienteId, servicoId])
+  @@map("cliente_servicos")
+}
+
+// ─── Funil ─────────────────────────────────────────────────────────────────
+
+model Etapa {
+  id                 Int     @id
+  ordem              Int     @unique
+  nome               String
+  /// Etapa de saída do funil (ex.: Orçamentos recusados).
+  final              Boolean @default(false)
+  /// O valor do contrato só aparece até a etapa 4.
+  exibeValorContrato Boolean @default(false) @map("exibe_valor_contrato")
+
+  processos      Processo[]
+  checklistItens ChecklistItem[]
+  historico      ProcessoEtapaHistorico[]
+
+  @@map("etapas")
+}
+
+enum StatusOrcamento {
+  A_ENVIAR
+  AGUARDANDO_APROVACAO
+  APROVADO
+  RECUSADO
+}
+
+/// Processo/contrato de um cliente (hoje a aba baseprincipal). Um cliente pode ter vários.
+model Processo {
+  id                    String          @id @default(uuid()) @db.Uuid
+  clienteId             String          @map("cliente_id") @db.Uuid
+  etapaAtualId          Int             @map("etapa_atual_id")
+  responsavelId         String?         @map("responsavel_id") @db.Uuid
+  /// Gerado pelo banco: sem risco de dois orçamentos com o mesmo número.
+  numeroOrcamento       Int             @unique @default(autoincrement()) @map("numero_orcamento")
+  statusOrcamento       StatusOrcamento @default(A_ENVIAR) @map("status_orcamento")
+  numeroContrato        String?         @map("numero_contrato")
+  plano                 String?
+  valorMensal           Decimal?        @map("valor_mensal") @db.Decimal(12, 2)
+  diaVencimento         Int?            @map("dia_vencimento")
+  validadeContrato      DateTime?       @map("validade_contrato") @db.Date
+  visitasContratadas    Int?            @map("visitas_contratadas")
+  cargaHorariaVisita    Int?            @map("carga_horaria_visita")
+  incluiFichasTecnicas  Boolean         @default(false) @map("inclui_fichas_tecnicas")
+  incluiInfoNutricional Boolean         @default(false) @map("inclui_info_nutricional")
+  incluiCardapios       Boolean         @default(false) @map("inclui_cardapios")
+  emailRelatorios       String?         @map("email_relatorios")
+  dataEnvioOrcamento    DateTime?       @map("data_envio_orcamento")
+  dataAprovacao         DateTime?       @map("data_aprovacao")
+  dataEnvioAssinatura   DateTime?       @map("data_envio_assinatura")
+  dataAssinatura        DateTime?       @map("data_assinatura")
+  motivoRecusaId        String?         @map("motivo_recusa_id") @db.Uuid
+  observacoes           String?
+  pendencias            String?
+  criadoEm              DateTime        @default(now()) @map("criado_em")
+  atualizadoEm          DateTime        @updatedAt @map("atualizado_em")
+
+  cliente                Cliente                  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  etapaAtual             Etapa                    @relation(fields: [etapaAtualId], references: [id])
+  responsavel            Usuario?                 @relation("ProcessoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  motivoRecusa           MotivoRecusa?            @relation(fields: [motivoRecusaId], references: [id], onDelete: SetNull)
+  checklist              ProcessoChecklist[]
+  historico              ProcessoEtapaHistorico[]
+  documentacoes          ProcessoDocumentacao[]
+  ciclos                 ProcessoCiclo[]
+  coletas                ColetaDados[]
+  visitas                Visita[]
+  planosAcao             PlanoAcao[]
+  solicitacoesPlacas     SolicitacaoPlaca[]
+  solicitacoesDocumentos SolicitacaoDocumento[]
+  solicitacoesEscritorio SolicitacaoEscritorio[]
+  arquivos               Arquivo[]
+
+  @@index([clienteId])
+  @@index([etapaAtualId])
+  @@map("processos")
+}
+
+/// Itens de checklist por etapa (antes eram colunas Sim/Não fixas).
+model ChecklistItem {
+  id        String              @id @default(uuid()) @db.Uuid
+  etapaId   Int                 @map("etapa_id")
+  descricao String
+  ordem     Int                 @default(0)
+  ativo     Boolean             @default(true)
+  etapa     Etapa               @relation(fields: [etapaId], references: [id])
+  processos ProcessoChecklist[]
+
+  @@unique([etapaId, descricao])
+  @@map("checklist_itens")
+}
+
+model ProcessoChecklist {
+  processoId     String        @map("processo_id") @db.Uuid
+  itemId         String        @map("item_id") @db.Uuid
+  concluido      Boolean       @default(false)
+  concluidoEm    DateTime?     @map("concluido_em")
+  concluidoPorId String?       @map("concluido_por_id") @db.Uuid
+  processo       Processo      @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  item           ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  concluidoPor   Usuario?      @relation(fields: [concluidoPorId], references: [id], onDelete: SetNull)
+
+  @@id([processoId, itemId])
+  @@map("processo_checklist")
+}
+
+/// Cada passagem de etapa. A linha sem fim é a etapa atual; a duração é calculada por consulta.
+model ProcessoEtapaHistorico {
+  id            String    @id @default(uuid()) @db.Uuid
+  processoId    String    @map("processo_id") @db.Uuid
+  etapaId       Int       @map("etapa_id")
+  inicio        DateTime  @default(now())
+  fim           DateTime?
+  responsavelId String?   @map("responsavel_id") @db.Uuid
+  motivo        String?
+  processo      Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  etapa         Etapa     @relation(fields: [etapaId], references: [id])
+  responsavel   Usuario?  @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  @@index([processoId, inicio])
+  @@map("processo_etapas_historico")
+}
+
+/// Motivos de recusa de orçamento, cadastrados pelos próprios usuários.
+model MotivoRecusa {
+  id        String     @id @default(uuid()) @db.Uuid
+  descricao String     @unique
+  ativo     Boolean    @default(true)
+  processos Processo[]
+
+  @@map("motivos_recusa")
+}
+
+model TipoDocumentacao {
+  id        String                 @id @default(uuid()) @db.Uuid
+  nome      String                 @unique
+  ativo     Boolean                @default(true)
+  processos ProcessoDocumentacao[]
+
+  @@map("tipos_documentacao")
+}
+
+model ProcessoDocumentacao {
+  processoId         String           @map("processo_id") @db.Uuid
+  tipoDocumentacaoId String           @map("tipo_documentacao_id") @db.Uuid
+  processo           Processo         @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  tipoDocumentacao   TipoDocumentacao @relation(fields: [tipoDocumentacaoId], references: [id], onDelete: Cascade)
+
+  @@id([processoId, tipoDocumentacaoId])
+  @@map("processo_documentacoes")
+}
+
+/// Ciclo do contrato: começa na etapa 11 e, no fim, após confirmação humana, o processo volta para a etapa 7.
+model ProcessoCiclo {
+  id             String    @id @default(uuid()) @db.Uuid
+  processoId     String    @map("processo_id") @db.Uuid
+  numero         Int
+  inicio         DateTime  @db.Date
+  fimPrevisto    DateTime? @map("fim_previsto") @db.Date
+  encerradoEm    DateTime? @map("encerrado_em")
+  encerradoPorId String?   @map("encerrado_por_id") @db.Uuid
+  processo       Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  encerradoPor   Usuario?  @relation(fields: [encerradoPorId], references: [id], onDelete: SetNull)
+
+  coletas                ColetaDados[]
+  visitas                Visita[]
+  planosAcao             PlanoAcao[]
+  solicitacoesDocumentos SolicitacaoDocumento[]
+
+  @@unique([processoId, numero])
+  @@map("processo_ciclos")
+}
+
+// ─── Notificações ──────────────────────────────────────────────────────────
+
+enum TipoNotificacao {
+  ETAPA_ALTERADA
+  PROCESSO_ATRIBUIDO
+  ORCAMENTO_PARADO
+  SOLICITACAO_PRAZO
+  VALIDACAO_PENDENTE
+  DOCUMENTO_VENCENDO
+  VISITA_ATRASADA
+  CONTRATO_VENCENDO
+}
+
+model Notificacao {
+  id         String          @id @default(uuid()) @db.Uuid
+  usuarioId  String          @map("usuario_id") @db.Uuid
+  tipo       TipoNotificacao
+  titulo     String
+  mensagem   String?
+  /// Tabela do item que a notificação abre (processo, solicitacao_escritorio, arquivo...).
+  entidade   String?
+  entidadeId String?         @map("entidade_id") @db.Uuid
+  lidaEm     DateTime?       @map("lida_em")
+  criadoEm   DateTime        @default(now()) @map("criado_em")
+  usuario    Usuario         @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, lidaEm])
+  @@map("notificacoes")
+}
+
+// ─── Operação técnica ──────────────────────────────────────────────────────
+
+model ColetaDados {
+  id                        String         @id @default(uuid()) @db.Uuid
+  processoId                String         @map("processo_id") @db.Uuid
+  cicloId                   String?        @map("ciclo_id") @db.Uuid
+  dataPreenchimento         DateTime       @default(now()) @map("data_preenchimento")
+  horarioPublico            String?        @map("horario_publico")
+  horarioProducao           String?        @map("horario_producao")
+  responsavelLegalNome      String?        @map("responsavel_legal_nome")
+  responsavelLegalCargo     String?        @map("responsavel_legal_cargo")
+  responsavelLegalRg        String?        @map("responsavel_legal_rg")
+  responsavelLegalCpf       String?        @map("responsavel_legal_cpf")
+  responsavelLegalTelefone  String?        @map("responsavel_legal_telefone")
+  telefoneEmpresa           String?        @map("telefone_empresa")
+  responsavelRelatorio      String?        @map("responsavel_relatorio")
+  encarregadosSetores       String?        @map("encarregados_setores")
+  dedetizadora              String?
+  fornecimentoAgua          String?        @map("fornecimento_agua")
+  caixasDagua               String?        @map("caixas_dagua")
+  limpezaCaixaDagua         String?        @map("limpeza_caixa_dagua")
+  coletaLixoComum           String?        @map("coleta_lixo_comum")
+  coletaLixoOrganico        String?        @map("coleta_lixo_organico")
+  coletaOleo                String?        @map("coleta_oleo")
+  medicinaSegurancaTrabalho String?        @map("medicina_seguranca_trabalho")
+  responsaveisHigienizacao  String?        @map("responsaveis_higienizacao")
+  materiaisLimpeza          String?        @map("materiais_limpeza")
+  escalaLimpeza             String?        @map("escala_limpeza")
+  equipamentosRefrigeracao  String?        @map("equipamentos_refrigeracao")
+  principaisFornecedores    String?        @map("principais_fornecedores")
+  observacoes               String?
+  processo                  Processo       @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  ciclo                     ProcessoCiclo? @relation(fields: [cicloId], references: [id], onDelete: SetNull)
+  setores                   Setor[]
+
+  @@index([processoId])
+  @@map("coletas_dados")
+}
+
+model Setor {
+  id           String      @id @default(uuid()) @db.Uuid
+  coletaId     String      @map("coleta_id") @db.Uuid
+  nome         String
+  piso         String?
+  parede       String?
+  teto         String?
+  portas       String[]
+  janelas      String[]
+  ralo         String?
+  equipamentos String?
+  coleta       ColetaDados @relation(fields: [coletaId], references: [id], onDelete: Cascade)
+
+  @@index([coletaId])
+  @@map("setores")
+}
+
+model Visita {
+  id                 String         @id @default(uuid()) @db.Uuid
+  processoId         String         @map("processo_id") @db.Uuid
+  cicloId            String?        @map("ciclo_id") @db.Uuid
+  tecnicoId          String?        @map("tecnico_id") @db.Uuid
+  inicio             DateTime
+  fim                DateTime?
+  realizado          String?
+  recebidoPor        String?        @map("recebido_por")
+  placasColadas      Boolean?       @map("placas_coladas")
+  fichasTecnicas     Boolean?       @map("fichas_tecnicas")
+  infoNutricional    Boolean?       @map("info_nutricional")
+  cardapios          Boolean?
+  teveInconformidade Boolean        @default(false) @map("teve_inconformidade")
+  inconformidades    String?
+  processo           Processo       @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  ciclo              ProcessoCiclo? @relation(fields: [cicloId], references: [id], onDelete: SetNull)
+  tecnico            Usuario?       @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+  planosAcao         PlanoAcao[]
+
+  @@index([processoId, inicio])
+  @@map("visitas")
+}
+
+enum StatusPlanoAcao {
+  ABERTO
+  CONCLUIDO
+}
+
+model PlanoAcao {
+  id         String          @id @default(uuid()) @db.Uuid
+  processoId String          @map("processo_id") @db.Uuid
+  cicloId    String?         @map("ciclo_id") @db.Uuid
+  visitaId   String?         @map("visita_id") @db.Uuid
+  data       DateTime        @db.Date
+  prazo      DateTime?       @db.Date
+  origem     String?
+  descricao  String
+  status     StatusPlanoAcao @default(ABERTO)
+  processo   Processo        @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  ciclo      ProcessoCiclo?  @relation(fields: [cicloId], references: [id], onDelete: SetNull)
+  visita     Visita?         @relation(fields: [visitaId], references: [id], onDelete: SetNull)
+
+  @@index([processoId])
+  @@map("planos_acao")
+}
+
+model SolicitacaoPlaca {
+  id          String    @id @default(uuid()) @db.Uuid
+  processoId  String    @map("processo_id") @db.Uuid
+  data        DateTime  @db.Date
+  placa       String
+  setores     String?
+  quantidade  Int?
+  observacoes String?
+  atendidaEm  DateTime? @map("atendida_em") @db.Date
+  processo    Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId])
+  @@map("solicitacoes_placas")
+}
+
+model SolicitacaoDocumento {
+  id            String         @id @default(uuid()) @db.Uuid
+  processoId    String         @map("processo_id") @db.Uuid
+  cicloId       String?        @map("ciclo_id") @db.Uuid
+  data          DateTime       @db.Date
+  tipoDocumento String         @map("tipo_documento")
+  realizadoEm   DateTime?      @map("realizado_em") @db.Date
+  processo      Processo       @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  ciclo         ProcessoCiclo? @relation(fields: [cicloId], references: [id], onDelete: SetNull)
+
+  @@index([processoId])
+  @@map("solicitacoes_documentos")
+}
+
+enum StatusSolicitacao {
+  EM_ABERTO
+  CONCLUIDO
+}
+
+model SolicitacaoEscritorio {
+  id              String            @id @default(uuid()) @db.Uuid
+  clienteId       String            @map("cliente_id") @db.Uuid
+  processoId      String?           @map("processo_id") @db.Uuid
+  status          StatusSolicitacao @default(EM_ABERTO)
+  data            DateTime          @db.Date
+  servico         String
+  descricao       String?
+  responsavelId   String?           @map("responsavel_id") @db.Uuid
+  prazo           DateTime?         @db.Date
+  requerValidacao Boolean           @default(false) @map("requer_validacao")
+  validadoPorId   String?           @map("validado_por_id") @db.Uuid
+  concluidoEm     DateTime?         @map("concluido_em") @db.Date
+  observacao      String?
+  cliente         Cliente           @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  processo        Processo?         @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  responsavel     Usuario?          @relation("SolicitacaoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  validadoPor     Usuario?          @relation("SolicitacaoValidador", fields: [validadoPorId], references: [id], onDelete: SetNull)
+  arquivos        Arquivo[]
+
+  @@index([status, prazo])
+  @@map("solicitacoes_escritorio")
+}
+
+model SolicitacaoMapa {
+  id         String    @id @default(uuid()) @db.Uuid
+  clienteId  String    @map("cliente_id") @db.Uuid
+  solicitado Boolean   @default(false)
+  data       DateTime? @db.Date
+  cliente    Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("solicitacoes_mapa")
+}
+
+enum CategoriaArquivo {
+  FOTO
+  ANEXO
+}
+
+/// Une as abas fotos e anexos. Pertence a um processo ou a uma solicitação do escritório.
+model Arquivo {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  processoId              String?                @map("processo_id") @db.Uuid
+  solicitacaoEscritorioId String?                @map("solicitacao_escritorio_id") @db.Uuid
+  categoria               CategoriaArquivo
+  tipo                    String?
+  descricao               String?
+  data                    DateTime               @default(now()) @db.Date
+  validade                DateTime?              @db.Date
+  caminhoStorage          String                 @map("caminho_storage")
+  mime                    String?
+  tamanhoBytes            Int?                   @map("tamanho_bytes")
+  enviadoPorId            String?                @map("enviado_por_id") @db.Uuid
+  criadoEm                DateTime               @default(now()) @map("criado_em")
+  processo                Processo?              @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  solicitacaoEscritorio   SolicitacaoEscritorio? @relation(fields: [solicitacaoEscritorioId], references: [id], onDelete: Cascade)
+  enviadoPor              Usuario?               @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([processoId])
+  @@index([validade])
+  @@map("arquivos")
+}
+
+enum StatusTarefa {
+  PENDENTE
+  CONCLUIDA
+}
+
+model Tarefa {
+  id        String       @id @default(uuid()) @db.Uuid
+  usuarioId String       @map("usuario_id") @db.Uuid
+  status    StatusTarefa @default(PENDENTE)
+  descricao String
+  data      DateTime     @default(now()) @db.Date
+  prazo     DateTime?    @db.Date
+  usuario   Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("tarefas")
+}
+
+// ─── Configuração ──────────────────────────────────────────────────────────
+
+/// Regras ajustáveis sem mudar o banco (ex.: "um_processo_ativo_por_cliente").
+model Configuracao {
+  chave        String   @id
+  valor        Json
+  descricao    String?
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("configuracoes")
+}

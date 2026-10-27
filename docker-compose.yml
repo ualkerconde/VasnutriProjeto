@@ -1,0 +1,21 @@
+# Banco PostgreSQL para desenvolvimento local.
+# Usa a porta 5433 no computador para não brigar com um PostgreSQL já instalado (5432).
+# Para trocar, defina DB_PORTA no .env e ajuste a porta em DATABASE_URL.
+services:
+  banco:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vasnutri
+      POSTGRES_PASSWORD: vasnutri
+      POSTGRES_DB: vasnutri
+    ports:
+      - "${DB_PORTA:-5433}:5432"
+    volumes:
+      - dados-banco:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vasnutri"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  dados-banco:
