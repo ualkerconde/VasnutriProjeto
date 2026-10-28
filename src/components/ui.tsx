@@ -129,14 +129,23 @@ export function Dados({ itens }: { itens: [string, ReactNode][] }) {
   );
 }
 
+/**
+ * Tabela que, no celular, vira uma lista de cartões: cada linha é um cartão e cada coluna
+ * aparece como "rótulo: valor". A primeira coluna vira o título do cartão.
+ */
 export function Tabela({ cabecalho, children }: { cabecalho: string[]; children: ReactNode }) {
+  const classe = `tabela-${hash(cabecalho.join("|"))}`;
+  const rotulos = cabecalho
+    .map((c, i) => (i > 0 && c ? `.${classe} td:nth-child(${i + 1})::before{content:${JSON.stringify(c)}}` : ""))
+    .join("");
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <div className={`${classe} -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0`}>
+      <style>{`@media (max-width:639px){${CSS_CARTOES.replaceAll("&", `.${classe}`)}${rotulos}}`}</style>
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           <tr className="text-left text-xs tracking-[0.04em] text-suave">
-            {cabecalho.map((c) => (
-              <th key={c} className="px-3 py-2.5 font-semibold uppercase">
+            {cabecalho.map((c, i) => (
+              <th key={`${c}-${i}`} className="px-3 py-2.5 font-semibold uppercase">
                 {c}
               </th>
             ))}
@@ -150,10 +159,26 @@ export function Tabela({ cabecalho, children }: { cabecalho: string[]; children:
   );
 }
 
+const CSS_CARTOES = [
+  "& table,& tbody,& tr{display:block;min-width:0}",
+  "& thead{display:none}",
+  "& tbody>tr{border:0;background:var(--color-fundo);border-radius:16px;padding:12px 14px;margin-bottom:8px}",
+  "& td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;text-align:right;min-height:28px}",
+  "& td:first-child{display:block;text-align:left;font-size:15px;padding-bottom:6px}",
+  "& td::before{flex:none;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--color-suave)}",
+  "& td:empty{display:none}",
+].join("");
+
+function hash(texto: string) {
+  let h = 0;
+  for (const c of texto) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 // ─── Campos de formulário ─────────────────────────────────────────────────
 
 export const classeCampo =
-  "w-full min-w-0 rounded-xl border-[1.5px] border-linha bg-superficie px-3.5 text-[15px] text-texto outline-none transition-[border-color,box-shadow] placeholder:text-suave/60 focus:border-verde focus:shadow-[0_0_0_4px_rgb(43_212_138/0.22)] disabled:bg-linha-suave";
+  "w-full min-w-0 rounded-xl border-[1.5px] border-linha bg-superficie px-3.5 text-base text-texto sm:text-[15px] outline-none transition-[border-color,box-shadow] placeholder:text-suave/60 focus:border-verde focus:shadow-[0_0_0_4px_rgb(43_212_138/0.22)] disabled:bg-linha-suave";
 
 type BaseCampo = { rotulo: string; nome: string; ajuda?: string; className?: string };
 

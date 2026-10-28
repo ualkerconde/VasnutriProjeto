@@ -71,10 +71,29 @@ export default async function Funil({ searchParams }: PageProps<"/funil">) {
         </button>
       </form>
 
-      <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-[clamp(16px,3vw,40px)] sm:px-[clamp(16px,3vw,40px)]">
+      {/* No celular: atalhos para cada etapa e colunas que encaixam ao deslizar. */}
+      <nav aria-label="Ir para a etapa" className="-mx-4 flex gap-2 overflow-x-auto px-4 sm:hidden">
+        {colunas.map(({ etapa, cards }) => (
+          <a
+            key={etapa.id}
+            href={`#etapa-${etapa.id}`}
+            className="flex flex-none items-center gap-1.5 rounded-full border border-linha bg-superficie px-3 py-1.5 text-[13px] font-semibold text-texto-2"
+          >
+            <span className="font-mono text-[11px] text-suave">{String(etapa.id).padStart(2, "0")}</span>
+            <span className="max-w-[140px] truncate">{etapa.nome}</span>
+            <span className={`rounded-full px-1.5 font-mono text-[11px] ${cards.length ? "bg-tinta text-menta" : "bg-linha-suave text-suave"}`}>{cards.length}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div className="-mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-2 sm:-mx-[clamp(16px,3vw,40px)] sm:snap-none sm:px-[clamp(16px,3vw,40px)]">
         <ol className="flex gap-3">
           {colunas.map(({ etapa, cards }) => (
-            <li key={etapa.id} className="flex w-[272px] flex-none flex-col gap-2 rounded-[18px] bg-linha-suave p-2.5">
+            <li
+              key={etapa.id}
+              id={`etapa-${etapa.id}`}
+              className="flex w-[82vw] max-w-[300px] flex-none snap-start scroll-mt-20 flex-col gap-2 rounded-[18px] bg-linha-suave p-2.5 sm:w-[272px]"
+            >
               <div className="flex items-center justify-between gap-2 px-1.5 pt-1">
                 <h2 className="text-[13px] leading-tight font-bold">
                   <span className="font-mono text-[11px] text-suave">{String(etapa.id).padStart(2, "0")}</span> {etapa.nome}
