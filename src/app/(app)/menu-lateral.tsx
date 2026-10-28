@@ -9,7 +9,7 @@ export function MenuLateral({ itens }: { itens: Item[] }) {
   const rota = usePathname();
 
   return (
-    <ul className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
+    <ul className="flex flex-col gap-1">
       {itens.map((item) => {
         const ativo = item.href === "/" ? rota === "/" : rota.startsWith(item.href);
         return (

@@ -88,6 +88,17 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 Os avisos automáticos são gerados quando alguém abre o sistema (no máximo uma vez por hora),
 então não é preciso agendador no servidor. Os prazos ficam em Cadastros > Configurações.
 
+## Uso no celular
+
+O sistema se adapta à tela do celular:
+
+- Barra de atalhos fixa embaixo (Painel, Funil, Clientes, Visitas) e o botão **Menu** com todas as telas, o usuário e o botão de sair.
+- Sino de notificações no topo, com o número de não lidas.
+- Tabelas viram cartões, um por linha, com o nome de cada coluna ao lado do valor.
+- No funil, as etapas aparecem como atalhos no topo e as colunas encaixam ao deslizar para o lado.
+- Na tela do processo, as ações (mudar de etapa, orçamento) vêm antes dos formulários longos.
+- Campos com fonte de 16px, para o iPhone não dar zoom ao tocar.
+
 ## Fotos e anexos
 
 Os arquivos enviados ficam na pasta `armazenamento/` do projeto (ou na pasta definida em
