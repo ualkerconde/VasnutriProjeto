@@ -15,6 +15,7 @@ import {
   type EstadoForm,
 } from "@/lib/form";
 import { acoesOrcamento, bloqueioAvanco, ETAPA, etapasDeRetorno, ITEM_TREINAMENTO } from "@/lib/funil/regras";
+import { exigirAlteracaoProcesso, regrasDoProcesso } from "@/lib/funil/permissoes";
 import { abrirCicloSeNecessario, mudarEtapa } from "@/lib/funil/servico";
 import { notificar } from "@/lib/notificacoes";
 
@@ -79,6 +80,7 @@ export async function criarProcesso(_: EstadoForm, f: FormData): Promise<EstadoF
 
 export async function avancarEtapa(id: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const processo = await carregar(id);
     const treinamento = await db.processoChecklist.findFirst({
       where: { processoId: id, concluido: true, item: { descricao: ITEM_TREINAMENTO } },
@@ -99,6 +101,7 @@ export async function avancarEtapa(id: string, _: EstadoForm, f: FormData): Prom
 
 export async function retornarEtapa(id: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const processo = await carregar(id);
     const para = inteiro(f, "etapa");
     if (para === null || !etapasDeRetorno(processo.etapaAtualId).includes(para)) {
@@ -112,7 +115,8 @@ export async function retornarEtapa(id: string, _: EstadoForm, f: FormData): Pro
 }
 
 export async function enviarOrcamento(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo("FUNIL", async () => {
+  return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const p = await carregar(id);
     if (!acoesOrcamento(p.etapaAtualId, p.statusOrcamento).enviar) throw new ErroValidacao("O orçamento não pode ser enviado agora.");
     await db.processo.update({ where: { id }, data: { statusOrcamento: "AGUARDANDO_APROVACAO", dataEnvioOrcamento: new Date() } });
@@ -120,7 +124,8 @@ export async function enviarOrcamento(id: string, _: EstadoForm): Promise<Estado
 }
 
 export async function aprovarOrcamento(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo("FUNIL", async () => {
+  return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const p = await carregar(id);
     if (!acoesOrcamento(p.etapaAtualId, p.statusOrcamento).aprovar) throw new ErroValidacao("O orçamento não pode ser aprovado agora.");
     await db.processo.update({
@@ -132,6 +137,7 @@ export async function aprovarOrcamento(id: string, _: EstadoForm): Promise<Estad
 
 export async function recusarOrcamento(id: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const p = await carregar(id);
     if (!acoesOrcamento(p.etapaAtualId, p.statusOrcamento).recusar) throw new ErroValidacao("O orçamento não pode ser recusado agora.");
     const motivoRecusaId = textoObrigatorio(f, "motivoRecusaId", "Motivo da recusa");
@@ -153,6 +159,7 @@ export async function recusarOrcamento(id: string, _: EstadoForm, f: FormData): 
 
 export async function recuperarOrcamento(id: string, _: EstadoForm): Promise<EstadoForm> {
   return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, id);
     const p = await carregar(id);
     if (!acoesOrcamento(p.etapaAtualId, p.statusOrcamento).recuperar) throw new ErroValidacao("Só é possível recuperar orçamentos recusados.");
     await db.$transaction(async (tx) => {
@@ -170,9 +177,14 @@ export async function recuperarOrcamento(id: string, _: EstadoForm): Promise<Est
 }
 
 export async function salvarContrato(id: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo("FUNIL", async () => {
+  return comModulo("FUNIL", async (usuario) => {
     const p = await carregar(id);
-    const dia = inteiro(f, "diaVencimento");
+    const { podeAlterar, campos } = await regrasDoProcesso(usuario, p.etapaAtualId);
+    if (!podeAlterar) await exigirAlteracaoProcesso(usuario, id);
+    // Só grava os campos que este usuário pode editar nesta etapa; os outros ficam como estão.
+    const pode = (c: keyof typeof campos) => campos[c].editavel;
+
+    const dia = pode("diaVencimento") ? inteiro(f, "diaVencimento") : null;
     if (dia !== null && (dia < 1 || dia > 31)) throw new ErroValidacao("O dia de vencimento precisa ser entre 1 e 31.");
     const documentacoes = f.getAll("documentacoes").filter((v): v is string => typeof v === "string" && v !== "");
 
@@ -180,26 +192,34 @@ export async function salvarContrato(id: string, _: EstadoForm, f: FormData): Pr
       db.processo.update({
         where: { id },
         data: {
-          numeroContrato: texto(f, "numeroContrato"),
-          plano: texto(f, "plano"),
-          // O valor só aparece (e só pode ser alterado) até a etapa 4.
-          ...(p.etapaAtual.exibeValorContrato ? { valorMensal: decimal(f, "valorMensal") } : {}),
-          diaVencimento: dia,
-          validadeContrato: data(f, "validadeContrato"),
-          visitasContratadas: inteiro(f, "visitasContratadas"),
-          cargaHorariaVisita: inteiro(f, "cargaHorariaVisita"),
-          incluiFichasTecnicas: marcado(f, "incluiFichasTecnicas"),
-          incluiInfoNutricional: marcado(f, "incluiInfoNutricional"),
-          incluiCardapios: marcado(f, "incluiCardapios"),
-          emailRelatorios: texto(f, "emailRelatorios"),
-          dataEnvioAssinatura: data(f, "dataEnvioAssinatura"),
-          dataAssinatura: data(f, "dataAssinatura"),
-          observacoes: texto(f, "observacoes"),
-          pendencias: texto(f, "pendencias"),
+          ...(pode("numeroContrato") ? { numeroContrato: texto(f, "numeroContrato") } : {}),
+          ...(pode("plano") ? { plano: texto(f, "plano") } : {}),
+          // O valor só aparece (e só pode ser alterado) nas etapas que exibem o valor (1 a 4).
+          ...(pode("valorMensal") && p.etapaAtual.exibeValorContrato ? { valorMensal: decimal(f, "valorMensal") } : {}),
+          ...(pode("diaVencimento") ? { diaVencimento: dia } : {}),
+          ...(pode("validadeContrato") ? { validadeContrato: data(f, "validadeContrato") } : {}),
+          ...(pode("visitasContratadas") ? { visitasContratadas: inteiro(f, "visitasContratadas") } : {}),
+          ...(pode("cargaHorariaVisita") ? { cargaHorariaVisita: inteiro(f, "cargaHorariaVisita") } : {}),
+          ...(pode("inclusoes")
+            ? {
+                incluiFichasTecnicas: marcado(f, "incluiFichasTecnicas"),
+                incluiInfoNutricional: marcado(f, "incluiInfoNutricional"),
+                incluiCardapios: marcado(f, "incluiCardapios"),
+              }
+            : {}),
+          ...(pode("emailRelatorios") ? { emailRelatorios: texto(f, "emailRelatorios") } : {}),
+          ...(pode("dataEnvioAssinatura") ? { dataEnvioAssinatura: data(f, "dataEnvioAssinatura") } : {}),
+          ...(pode("dataAssinatura") ? { dataAssinatura: data(f, "dataAssinatura") } : {}),
+          ...(pode("observacoes") ? { observacoes: texto(f, "observacoes") } : {}),
+          ...(pode("pendencias") ? { pendencias: texto(f, "pendencias") } : {}),
         },
       }),
-      db.processoDocumentacao.deleteMany({ where: { processoId: id } }),
-      db.processoDocumentacao.createMany({ data: documentacoes.map((tipoDocumentacaoId) => ({ processoId: id, tipoDocumentacaoId })) }),
+      ...(pode("documentacoes")
+        ? [
+            db.processoDocumentacao.deleteMany({ where: { processoId: id } }),
+            db.processoDocumentacao.createMany({ data: documentacoes.map((tipoDocumentacaoId) => ({ processoId: id, tipoDocumentacaoId })) }),
+          ]
+        : []),
     ]);
     return { ok: "Dados do contrato salvos." };
   });
@@ -207,6 +227,7 @@ export async function salvarContrato(id: string, _: EstadoForm, f: FormData): Pr
 
 export async function marcarChecklist(processoId: string, itemId: string, _: EstadoForm): Promise<EstadoForm> {
   return comModulo("FUNIL", async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     const atual = await db.processoChecklist.findUnique({ where: { processoId_itemId: { processoId, itemId } } });
     const concluido = !atual?.concluido;
     await db.processoChecklist.upsert({

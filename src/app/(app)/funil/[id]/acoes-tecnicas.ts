@@ -18,6 +18,7 @@ import {
   type EstadoForm,
 } from "@/lib/form";
 import { ETAPA } from "@/lib/funil/regras";
+import { exigirAlteracaoProcesso } from "@/lib/funil/permissoes";
 import { cicloAberto, mudarEtapa } from "@/lib/funil/servico";
 import { notificar } from "@/lib/notificacoes";
 
@@ -60,14 +61,16 @@ const CAMPOS_COLETA = [
 ] as const;
 
 export async function novaColeta(processoId: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     const coleta = await db.coletaDados.create({ data: { processoId, cicloId: await cicloAtualId(processoId) } });
     redirect(`/funil/${processoId}/coleta/${coleta.id}`);
   });
 }
 
 export async function salvarColeta(coletaId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.coletaDados.findUniqueOrThrow({ where: { id: coletaId } })).processoId);
     const dados = Object.fromEntries(CAMPOS_COLETA.map((c) => [c, texto(f, c)]));
     await db.coletaDados.update({
       where: { id: coletaId },
@@ -78,7 +81,8 @@ export async function salvarColeta(coletaId: string, _: EstadoForm, f: FormData)
 }
 
 export async function excluirColeta(processoId: string, coletaId: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.coletaDados.delete({ where: { id: coletaId } });
     redirect(`/funil/${processoId}#coletas`);
   });
@@ -98,21 +102,24 @@ function dadosSetor(f: FormData) {
 }
 
 export async function adicionarSetor(coletaId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.coletaDados.findUniqueOrThrow({ where: { id: coletaId } })).processoId);
     await db.setor.create({ data: { coletaId, ...dadosSetor(f) } });
     return { ok: "Setor adicionado." };
   });
 }
 
 export async function salvarSetor(id: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.setor.findUniqueOrThrow({ where: { id }, include: { coleta: true } })).coleta.processoId);
     await db.setor.update({ where: { id }, data: dadosSetor(f) });
     return { ok: "Setor salvo." };
   });
 }
 
 export async function removerSetor(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.setor.findUniqueOrThrow({ where: { id }, include: { coleta: true } })).coleta.processoId);
     await db.setor.delete({ where: { id } });
   });
 }
@@ -141,21 +148,24 @@ async function dadosVisita(f: FormData) {
 }
 
 export async function registrarVisita(processoId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.visita.create({ data: { processoId, cicloId: await cicloAtualId(processoId), ...(await dadosVisita(f)) } });
     redirect(`/funil/${processoId}#visitas`);
   });
 }
 
 export async function salvarVisita(processoId: string, visitaId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.visita.update({ where: { id: visitaId }, data: await dadosVisita(f) });
     redirect(`/funil/${processoId}#visitas`);
   });
 }
 
 export async function excluirVisita(processoId: string, visitaId: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.visita.delete({ where: { id: visitaId } });
     redirect(`/funil/${processoId}#visitas`);
   });
@@ -164,7 +174,8 @@ export async function excluirVisita(processoId: string, visitaId: string, _: Est
 // ─── Plano de ação ────────────────────────────────────────────────────────
 
 export async function adicionarPlano(processoId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.planoAcao.create({
       data: {
         processoId,
@@ -181,14 +192,16 @@ export async function adicionarPlano(processoId: string, _: EstadoForm, f: FormD
 }
 
 export async function alternarPlano(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.planoAcao.findUniqueOrThrow({ where: { id } })).processoId);
     const plano = await db.planoAcao.findUniqueOrThrow({ where: { id } });
     await db.planoAcao.update({ where: { id }, data: { status: plano.status === "ABERTO" ? "CONCLUIDO" : "ABERTO" } });
   });
 }
 
 export async function removerPlano(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.planoAcao.findUniqueOrThrow({ where: { id } })).processoId);
     await db.planoAcao.delete({ where: { id } });
   });
 }
@@ -196,7 +209,8 @@ export async function removerPlano(id: string, _: EstadoForm): Promise<EstadoFor
 // ─── Pedidos de documento ─────────────────────────────────────────────────
 
 export async function solicitarDocumento(processoId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     await db.solicitacaoDocumento.create({
       data: {
         processoId,
@@ -210,14 +224,16 @@ export async function solicitarDocumento(processoId: string, _: EstadoForm, f: F
 }
 
 export async function alternarDocumento(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.solicitacaoDocumento.findUniqueOrThrow({ where: { id } })).processoId);
     const doc = await db.solicitacaoDocumento.findUniqueOrThrow({ where: { id } });
     await db.solicitacaoDocumento.update({ where: { id }, data: { realizadoEm: doc.realizadoEm ? null : hoje() } });
   });
 }
 
 export async function removerDocumento(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.solicitacaoDocumento.findUniqueOrThrow({ where: { id } })).processoId);
     await db.solicitacaoDocumento.delete({ where: { id } });
   });
 }
@@ -226,6 +242,7 @@ export async function removerDocumento(id: string, _: EstadoForm): Promise<Estad
 
 export async function solicitarPlacas(processoId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     const processo = await db.processo.findUniqueOrThrow({ where: { id: processoId } });
     const placa = textoObrigatorio(f, "placa", "Qual placa");
     const quantidade = inteiro(f, "quantidade");
@@ -268,6 +285,7 @@ export async function enviarArquivo(
   f: FormData,
 ): Promise<EstadoForm> {
   return comModulo(["FUNIL", "VISITAS", "SOLICITACOES"], async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, dono.processoId);
     const arquivo = f.get("arquivo");
     if (!(arquivo instanceof File) || arquivo.size === 0) throw new ErroValidacao("Escolha um arquivo.");
     const categoria = (texto(f, "categoria") === "FOTO" ? "FOTO" : "ANEXO") as CategoriaArquivo;
@@ -297,7 +315,8 @@ export async function enviarArquivo(
 }
 
 export async function removerArquivo(id: string, _: EstadoForm): Promise<EstadoForm> {
-  return comModulo(["FUNIL", "VISITAS", "SOLICITACOES"], async () => {
+  return comModulo(["FUNIL", "VISITAS", "SOLICITACOES"], async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.arquivo.findUniqueOrThrow({ where: { id } })).processoId);
     const arquivo = await db.arquivo.delete({ where: { id } });
     await apagarArquivo(arquivo.caminhoStorage);
   });
@@ -306,7 +325,8 @@ export async function removerArquivo(id: string, _: EstadoForm): Promise<EstadoF
 // ─── Ciclo do contrato ────────────────────────────────────────────────────
 
 export async function ajustarCiclo(cicloId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return comModulo(modulos, async () => {
+  return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, (await db.processoCiclo.findUniqueOrThrow({ where: { id: cicloId } })).processoId);
     const inicio = data(f, "inicio");
     if (!inicio) throw new ErroValidacao("Informe o início do ciclo.");
     const fimPrevisto = data(f, "fimPrevisto");
@@ -319,6 +339,7 @@ export async function ajustarCiclo(cicloId: string, _: EstadoForm, f: FormData):
 /** Fim do contrato confirmado por uma pessoa: fecha o ciclo e volta para Agendamento de diagnóstico. */
 export async function encerrarCiclo(processoId: string, cicloId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo(modulos, async (usuario) => {
+    await exigirAlteracaoProcesso(usuario, processoId);
     const processo = await db.processo.findUniqueOrThrow({ where: { id: processoId } });
     if (processo.etapaAtualId !== ETAPA.VISITAS) throw new ErroValidacao("O ciclo só pode ser encerrado em Visitas técnicas.");
     const ciclo = await db.processoCiclo.findUniqueOrThrow({ where: { id: cicloId } });

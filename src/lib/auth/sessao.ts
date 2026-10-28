@@ -14,6 +14,7 @@ export type UsuarioAtual = {
   nome: string;
   email: string;
   perfis: string[];
+  perfilIds: string[];
   modulos: Modulo[];
 };
 
@@ -71,6 +72,7 @@ export const usuarioAtual = cache(async (): Promise<UsuarioAtual | null> => {
     nome: sessao.usuario.nome,
     email: sessao.usuario.email,
     perfis: perfis.map((p) => p.nome),
+    perfilIds: perfis.map((p) => p.id),
     modulos: modulosDosPerfis(perfis),
   };
 });

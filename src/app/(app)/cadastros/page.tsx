@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { MENU } from "@/lib/modulos";
 import { adicionarChecklist, alternarChecklist, criarPerfil, salvarConfiguracoes, salvarPermissoes } from "./acoes";
 import { EdicaoListaSimples } from "./lista-simples";
+import { PermissoesFunil } from "./permissoes-funil";
 
 export const metadata: Metadata = { title: "Cadastros" };
 
@@ -16,6 +17,7 @@ const SECOES = [
   ["documentacao", "Documentação"],
   ["checklist", "Checklist por etapa"],
   ["perfis", "Perfis e permissões"],
+  ["permissoes-funil", "Permissões do funil"],
   ["configuracoes", "Configurações"],
 ] as const;
 
@@ -23,13 +25,15 @@ export default async function Cadastros() {
   const usuario = await exigirModulo("CADASTROS");
   const gerePerfis = usuario.modulos.includes("USUARIOS");
 
-  const [motivos, servicos, documentacoes, etapas, perfis, configs] = await Promise.all([
+  const [motivos, servicos, documentacoes, etapas, perfis, configs, permissoesEtapa, camposConfig] = await Promise.all([
     db.motivoRecusa.findMany({ orderBy: [{ ativo: "desc" }, { descricao: "asc" }] }),
     db.servico.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
     db.tipoDocumentacao.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
     db.etapa.findMany({ orderBy: { ordem: "asc" }, include: { checklistItens: { orderBy: { ordem: "asc" } } } }),
     db.perfil.findMany({ orderBy: { nome: "asc" }, include: { permissoes: true, _count: { select: { usuarios: true } } } }),
     lerTodasConfigs(),
+    db.etapaPerfil.findMany(),
+    db.campoProcesso.findMany(),
   ]);
 
   return (
@@ -37,7 +41,7 @@ export default async function Cadastros() {
       <CabecalhoPagina sobretitulo="Configuração" titulo="Cadastros" descricao="Listas e regras usadas no dia a dia, que antes ficavam fixas no AppSheet." />
 
       <nav aria-label="Seções" className="-mt-2 flex flex-wrap gap-2">
-        {SECOES.filter(([id]) => id !== "perfis" || gerePerfis).map(([id, rotulo]) => (
+        {SECOES.filter(([id]) => (id !== "perfis" && id !== "permissoes-funil") || gerePerfis).map(([id, rotulo]) => (
           <a key={id} href={`#${id}`} className="rounded-full border border-linha bg-superficie px-3 py-1.5 text-[13px] font-semibold text-texto-2 hover:border-verde hover:text-verde">
             {rotulo}
           </a>
@@ -121,6 +125,15 @@ export default async function Cadastros() {
             </div>
           </div>
         </Cartao>
+      )}
+
+      {gerePerfis && (
+        <PermissoesFunil
+          etapas={etapas}
+          perfis={perfis}
+          permissoes={permissoesEtapa}
+          configs={camposConfig}
+        />
       )}
 
       <Cartao id="configuracoes" titulo="Configurações" className="max-w-3xl">

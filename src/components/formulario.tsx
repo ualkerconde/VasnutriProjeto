@@ -19,6 +19,7 @@ export function Formulario({
 }: {
   acao: Acao;
   children?: ReactNode;
+  /** null esconde o botão (formulário só de leitura). */
   botao?: ReactNode;
   variante?: VarianteBotao;
   className?: string;
@@ -52,9 +53,11 @@ export function Formulario({
           {estado.ok}
         </p>
       )}
-      <div>
-        <BotaoEnviar variante={variante}>{botao}</BotaoEnviar>
-      </div>
+      {botao !== null && (
+        <div>
+          <BotaoEnviar variante={variante}>{botao}</BotaoEnviar>
+        </div>
+      )}
     </form>
   );
 }

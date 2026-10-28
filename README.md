@@ -82,7 +82,7 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 | Solicitações | Pedidos ao escritório com responsável, prazo, validação e anexos |
 | Mapa de comercialização | Quem já pediu o mapa no ciclo, com botão para reiniciar o ciclo |
 | Notificações | Mudanças de etapa, orçamento parado, contrato ou documento vencendo, visita atrasada, prazos |
-| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis e configurações |
+| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis, permissões do funil e configurações |
 | Usuários | Usuários, perfis, ativar/desativar e redefinir senha |
 
 Os avisos automáticos são gerados quando alguém abre o sistema (no máximo uma vez por hora),
@@ -153,6 +153,17 @@ src/lib/auth              sessão, login e permissões
 | Técnico | Painel, Funil, Clientes, Visitas, Solicitações |
 
 Os módulos de cada perfil podem ser mudados em Cadastros > Perfis.
+
+### Permissões do funil (Cadastros > Permissões do funil)
+
+1. **Quem altera em cada etapa:** para cada etapa, os perfis que podem mexer no processo (dados,
+   checklist, visitas, arquivos, mudança de etapa). Os outros só veem. O Administrador pode sempre.
+2. **Edição por etapa:** para cada campo do contrato, as etapas em que ele pode ser editado. Nas
+   outras ele aparece travado.
+3. **Informações sensíveis:** campos marcados como sensíveis só aparecem para os perfis escolhidos
+   (e para o Administrador).
+
+Tudo começa liberado; as regras valem também no servidor, não só na tela.
 
 ## Regras de negócio
 

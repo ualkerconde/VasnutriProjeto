@@ -6,6 +6,7 @@ import { CabecalhoPagina, Cartao, Selo } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
 import { db } from "@/lib/db";
 import { ETAPA, ITEM_TREINAMENTO } from "@/lib/funil/regras";
+import { regrasDoProcesso } from "@/lib/funil/permissoes";
 import { usuariosAtivos } from "@/lib/listas";
 import { excluirProcesso } from "../acoes";
 import { Checklist, Historico } from "./checklist-historico";
@@ -13,6 +14,7 @@ import { Contrato } from "./contrato";
 import { carregarProcesso } from "./dados";
 import { Movimento } from "./movimento";
 import { SecoesTecnicas } from "./tecnico";
+import { TravaProcesso } from "./trava";
 
 export const metadata: Metadata = { title: "Processo" };
 
@@ -34,6 +36,7 @@ export default async function DetalheProcesso({ params }: PageProps<"/funil/[id]
     (c) => c.concluido && itens.find((i) => i.id === c.itemId)?.descricao === ITEM_TREINAMENTO,
   );
   const etapa = processo.etapaAtualId;
+  const regras = await regrasDoProcesso(usuario, etapa);
   const caminho = etapas.filter((e) => !e.final);
 
   return (
@@ -48,7 +51,7 @@ export default async function DetalheProcesso({ params }: PageProps<"/funil/[id]
         descricao={
           <>
             Responsável: <strong>{processo.responsavel?.nome ?? "ninguém"}</strong>
-            {processo.numeroContrato && <> · Contrato {processo.numeroContrato}</>}
+            {processo.numeroContrato && regras.campos.numeroContrato.visivel && <> · Contrato {processo.numeroContrato}</>}
           </>
         }
         acoes={
@@ -75,25 +78,27 @@ export default async function DetalheProcesso({ params }: PageProps<"/funil/[id]
         </ol>
       </nav>
 
-      <div className="flex flex-wrap items-start gap-5">
-        <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-5">
-          <Contrato processo={processo} tipos={tipos} />
-          <SecoesTecnicas processo={processo} usuarios={usuarios} />
+      <TravaProcesso processoId={processo.id}>
+        <div className="flex flex-wrap items-start gap-5">
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-5">
+            <Contrato processo={processo} tipos={tipos} campos={regras.campos} />
+            <SecoesTecnicas processo={processo} usuarios={usuarios} podeAlterar={regras.podeAlterar} />
+          </div>
+          <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-5">
+            <Movimento processo={processo} etapas={etapas} usuarios={usuarios} motivos={motivos} treinamentoRealizado={treinamentoRealizado} />
+            <Checklist processo={processo} itens={itens} etapas={etapas} />
+            <Historico processo={processo} agora={new Date().getTime()} />
+            {usuario.perfis.includes("Administrador") && (
+              <Cartao titulo="Excluir processo">
+                <p className="mb-3 text-sm text-suave">Apaga o processo e tudo ligado a ele (histórico, visitas, anexos). Não dá para desfazer.</p>
+                <BotaoAcao acao={excluirProcesso.bind(null, processo.id)} variante="perigo" confirmar="Excluir este processo e tudo ligado a ele?">
+                  Excluir processo
+                </BotaoAcao>
+              </Cartao>
+            )}
+          </div>
         </div>
-        <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-5">
-          <Movimento processo={processo} etapas={etapas} usuarios={usuarios} motivos={motivos} treinamentoRealizado={treinamentoRealizado} />
-          <Checklist processo={processo} itens={itens} etapas={etapas} />
-          <Historico processo={processo} agora={new Date().getTime()} />
-          {usuario.perfis.includes("Administrador") && (
-            <Cartao titulo="Excluir processo">
-              <p className="mb-3 text-sm text-suave">Apaga o processo e tudo ligado a ele (histórico, visitas, anexos). Não dá para desfazer.</p>
-              <BotaoAcao acao={excluirProcesso.bind(null, processo.id)} variante="perigo" confirmar="Excluir este processo e tudo ligado a ele?">
-                Excluir processo
-              </BotaoAcao>
-            </Cartao>
-          )}
-        </div>
-      </div>
+      </TravaProcesso>
     </>
   );
 }

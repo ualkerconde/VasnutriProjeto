@@ -105,6 +105,13 @@ async function main() {
     });
   }
 
+  // Banco novo: todo perfil começa podendo alterar processos em todas as etapas
+  // (depois cada um ajusta em Cadastros > Permissões do funil).
+  if ((await db.etapaPerfil.count()) === 0) {
+    const [etapas, perfis] = await Promise.all([db.etapa.findMany(), db.perfil.findMany()]);
+    await db.etapaPerfil.createMany({ data: etapas.flatMap((e) => perfis.map((p) => ({ etapaId: e.id, perfilId: p.id }))) });
+  }
+
   await db.servico.createMany({ data: SERVICOS.map((nome) => ({ nome })), skipDuplicates: true });
   await db.tipoDocumentacao.createMany({ data: TIPOS_DOCUMENTACAO.map((nome) => ({ nome })), skipDuplicates: true });
 

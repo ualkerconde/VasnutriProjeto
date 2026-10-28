@@ -23,7 +23,15 @@ import type { ProcessoCompleto } from "./dados";
 
 type Pessoa = { id: string; nome: string };
 
-export async function SecoesTecnicas({ processo, usuarios }: { processo: ProcessoCompleto; usuarios: Pessoa[] }) {
+export async function SecoesTecnicas({
+  processo,
+  usuarios,
+  podeAlterar,
+}: {
+  processo: ProcessoCompleto;
+  usuarios: Pessoa[];
+  podeAlterar: boolean;
+}) {
   const id = processo.id;
   const [coletas, visitas, planos, documentos, arquivos, solicitacoes] = await Promise.all([
     db.coletaDados.findMany({ where: { processoId: id }, orderBy: { dataPreenchimento: "desc" }, include: { _count: { select: { setores: true } } } }),
@@ -143,9 +151,11 @@ export async function SecoesTecnicas({ processo, usuarios }: { processo: Process
         id="visitas"
         titulo="Visitas técnicas"
         acoes={
-          <LinkBotao href={`/funil/${id}/visita/nova`} variante="secundario" pequeno>
-            Registrar visita
-          </LinkBotao>
+          podeAlterar && (
+            <LinkBotao href={`/funil/${id}/visita/nova`} variante="secundario" pequeno>
+              Registrar visita
+            </LinkBotao>
+          )
         }
       >
         {visitas.length === 0 ? (

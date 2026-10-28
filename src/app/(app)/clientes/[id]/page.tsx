@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BotaoAcao, Formulario } from "@/components/formulario";
 import { CabecalhoPagina, Campo, Cartao, EstadoVazio, Grade, LinkBotao, Selecao, Selo, Tabela } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
+import { camposVisiveis } from "@/lib/funil/permissoes";
 import { filtroContratoVigente, formatarCnpj, TIPOS_CONTATO } from "@/lib/clientes";
 import { fmtData } from "@/lib/datas";
 import { db } from "@/lib/db";
@@ -15,6 +16,7 @@ export const metadata: Metadata = { title: "Cliente" };
 
 export default async function DetalheCliente({ params }: PageProps<"/clientes/[id]">) {
   const usuario = await exigirModulo("CLIENTES");
+  const ve = await camposVisiveis(usuario);
   const { id } = await params;
 
   const [cliente, servicos, gestores, vigente] = await Promise.all([
@@ -123,8 +125,8 @@ export default async function DetalheCliente({ params }: PageProps<"/clientes/[i
                     {p.etapaAtual.id}. {p.etapaAtual.nome}
                   </Selo>
                 </td>
-                <td>{p.numeroContrato ?? "—"}</td>
-                <td>{fmtData(p.validadeContrato)}</td>
+                <td>{ve.numeroContrato ? (p.numeroContrato ?? "—") : "•••"}</td>
+                <td>{ve.validadeContrato ? fmtData(p.validadeContrato) : "•••"}</td>
                 <td>{fmtData(p.criadoEm)}</td>
               </tr>
             ))}

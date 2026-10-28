@@ -52,11 +52,12 @@ model Usuario {
 }
 
 model Perfil {
-  id         String            @id @default(uuid()) @db.Uuid
-  nome       String            @unique
-  descricao  String?
-  permissoes PerfilPermissao[]
-  usuarios   UsuarioPerfil[]
+  id           String            @id @default(uuid()) @db.Uuid
+  nome         String            @unique
+  descricao    String?
+  permissoes   PerfilPermissao[]
+  usuarios     UsuarioPerfil[]
+  etapasEdicao EtapaPerfil[]
 
   @@map("perfis")
 }
@@ -194,6 +195,7 @@ model Etapa {
   processos      Processo[]
   checklistItens ChecklistItem[]
   historico      ProcessoEtapaHistorico[]
+  perfisEdicao   EtapaPerfil[]
 
   @@map("etapas")
 }
@@ -608,4 +610,27 @@ model Configuracao {
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   @@map("configuracoes")
+}
+
+// Perfis que podem alterar um processo enquanto ele está nesta etapa.
+// Administrador pode sempre (para ninguém ficar trancado fora).
+model EtapaPerfil {
+  etapaId  Int    @map("etapa_id")
+  perfilId String @map("perfil_id") @db.Uuid
+  etapa    Etapa  @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@id([etapaId, perfilId])
+  @@map("etapa_perfis")
+}
+
+// Regras de cada campo do processo (as chaves estão em src/lib/funil/campos.ts).
+// Sem linha para o campo: editável em todas as etapas e visível para todos.
+model CampoProcesso {
+  chave           String   @id
+  etapasEditaveis Int[]    @map("etapas_editaveis")
+  sensivel        Boolean  @default(false)
+  perfisVisiveis  String[] @map("perfis_visiveis") @db.Uuid
+
+  @@map("campos_processo")
 }

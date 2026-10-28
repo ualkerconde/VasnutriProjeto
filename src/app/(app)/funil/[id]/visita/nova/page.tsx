@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { opcoes, usuariosAtivos } from "@/lib/listas";
 import { registrarVisita } from "../../acoes-tecnicas";
 import { FormVisita } from "../form-visita";
+import { TravaProcesso } from "../../trava";
 
 export const metadata: Metadata = { title: "Registrar visita" };
 
@@ -30,26 +31,28 @@ export default async function NovaVisita({ params }: PageProps<"/funil/[id]/visi
           </LinkBotao>
         }
       />
-      <Cartao>
-        <FormVisita
-          acao={registrarVisita.bind(null, id)}
-          tecnicos={opcoes(usuarios, (u) => u.nome)}
-          inclui={{ fichas: processo.incluiFichasTecnicas, info: processo.incluiInfoNutricional, cardapios: processo.incluiCardapios }}
-          visita={{
-            inicio: paraInputDataHora(new Date()),
-            fim: "",
-            tecnicoId: usuario.id,
-            realizado: "",
-            recebidoPor: "",
-            placasColadas: null,
-            fichasTecnicas: null,
-            infoNutricional: null,
-            cardapios: null,
-            teveInconformidade: false,
-            inconformidades: "",
-          }}
-        />
-      </Cartao>
+      <TravaProcesso processoId={id}>
+        <Cartao>
+          <FormVisita
+            acao={registrarVisita.bind(null, id)}
+            tecnicos={opcoes(usuarios, (u) => u.nome)}
+            inclui={{ fichas: processo.incluiFichasTecnicas, info: processo.incluiInfoNutricional, cardapios: processo.incluiCardapios }}
+            visita={{
+              inicio: paraInputDataHora(new Date()),
+              fim: "",
+              tecnicoId: usuario.id,
+              realizado: "",
+              recebidoPor: "",
+              placasColadas: null,
+              fichasTecnicas: null,
+              infoNutricional: null,
+              cardapios: null,
+              teveInconformidade: false,
+              inconformidades: "",
+            }}
+          />
+        </Cartao>
+      </TravaProcesso>
     </>
   );
 }
