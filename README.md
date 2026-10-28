@@ -33,6 +33,25 @@ npm run dev
 
 Abra http://localhost:3000 e entre com o e-mail e a senha do administrador definidos no `.env`.
 
+### Logins de teste
+
+| Perfil | E-mail | Senha |
+| --- | --- | --- |
+| Administrador (do `.env`) | `admin@vasnutri.local` | `troque-esta-senha` |
+| Administrador | `teste.admin@vasnutri.local` | `teste-admin-123` |
+| Comercial | `teste.comercial@vasnutri.local` | `teste-comercial-123` |
+| Técnico | `teste.tecnico@vasnutri.local` | `teste-tecnico-123` |
+
+O primeiro é criado pelo `npm run db:seed` com `ADMIN_EMAIL` e `ADMIN_SENHA` do `.env` (se você
+mudou esses valores, vale o que está no seu `.env`). Os outros três são criados com:
+
+```powershell
+npm run db:usuarios-teste
+```
+
+Rodar de novo volta as senhas de teste. **Só para testes no computador:** em produção, não crie
+esses usuários e troque a senha do administrador.
+
 O banco do Docker usa a porta **5433** do computador, para não conflitar com um PostgreSQL
 já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_URL` no `.env`.
 
@@ -47,6 +66,7 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 | `npm run db:migrate` | Cria/aplica migrações no banco local |
 | `npm run db:deploy` | Aplica migrações em produção |
 | `npm run db:seed` | Dados iniciais (pode rodar de novo sem duplicar) |
+| `npm run db:usuarios-teste` | Cria os usuários de teste (um por perfil) |
 | `npm run db:studio` | Abre o Prisma Studio para ver os dados |
 | `npm run migrar -- arquivo.xlsx` | Migração do AppSheet (veja abaixo) |
 
