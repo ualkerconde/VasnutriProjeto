@@ -68,7 +68,7 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 | `npm run db:seed` | Dados iniciais (pode rodar de novo sem duplicar) |
 | `npm run db:usuarios-teste` | Cria os usuários de teste (um por perfil) |
 | `npm run db:studio` | Abre o Prisma Studio para ver os dados |
-| `npm run migrar -- arquivo.xlsx` | Migração do AppSheet (veja abaixo) |
+| `npm run migrar -- arquivo.xlsx` | Migração do AppSheet (veja abaixo; `--somente-clientes` traz só os clientes) |
 
 ## O que o sistema faz
 
@@ -136,6 +136,23 @@ O que o script faz:
   mapa de comercialização, anexos, fotos e atividades também são migrados.
 - Linhas que apontam para um processo que não existe mais (testes antigos) são puladas e listadas no relatório.
 - Só roda num funil vazio e só pode ser gravada uma vez, para não duplicar dados.
+
+### Só a base de clientes
+
+Para trazer só o cadastro das empresas (nome, razão social, CNPJ, endereço, e-mails e telefone),
+sem processos, visitas ou usuários, use `--somente-clientes`. Os clientes vêm das abas `Clientes`
+e `baseprincipal`.
+
+```powershell
+npm run migrar -- appsheet.xlsx --somente-clientes
+npm run migrar -- appsheet.xlsx --somente-clientes --aplicar
+```
+
+- Pode rodar num banco que já tem dados e pode ser repetido: cliente com o mesmo CNPJ (ou, sem
+  CNPJ, com o mesmo nome) é mantido, sem duplicar nem sobrescrever.
+- O gestor só é ligado se já existir um usuário com aquele primeiro nome. Cadastre os usuários e
+  rode de novo para preencher os gestores que faltaram.
+- Em produção é o mesmo comando, com o `DATABASE_URL` do banco de produção no `.env`.
 
 Fotos e anexos: o AppSheet guarda os arquivos no Google Drive, em pastas como `anexos_Files_`,
 `anexos_Images` e `fotos_Images` (dentro da pasta do app). Baixe essas pastas e copie para

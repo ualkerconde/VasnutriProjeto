@@ -6,6 +6,10 @@
 //   npm run migrar -- caminho/planilha.xlsx            simula e mostra o relatório, sem gravar nada
 //   npm run migrar -- caminho/planilha.xlsx --aplicar  grava no banco
 //
+// Com --somente-clientes, traz só o cadastro das empresas (nome, razão social, CNPJ, endereço,
+// e-mails e telefone) das abas Clientes e baseprincipal. Pode rodar de novo sem duplicar:
+// quem já existe (mesmo CNPJ, ou mesmo nome quando não há CNPJ) é mantido.
+//
 // Senhas do AppSheet não são migradas: cada usuário recebe uma senha nova pelo administrador.
 // Fotos e anexos: o banco guarda o caminho; os arquivos precisam ser copiados para
 // armazenamento/appsheet/ (veja o README).
@@ -160,7 +164,7 @@ const CHECKLIST: [coluna: string, etapa: number, item: string][] = [
 const ETAPA_VISITAS = 11;
 const ETAPA_RECUSADOS = 12;
 
-async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
+async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio, somenteClientes = false) {
   const aba = (nome: string) => abas.get(chaveColuna(nome))?.linhas ?? [];
   const v = Aba.valor;
   const t = (l: Linha, c: string) => textoDe(v(l, c));
@@ -168,7 +172,7 @@ async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
 
   // ----- usuários -----
   const perfis = new Map((await tx.perfil.findMany()).map((p) => [p.nome, p.id]));
-  for (const l of aba("usuarios")) {
+  for (const l of somenteClientes ? [] : aba("usuarios")) {
     const email = emailsDe(v(l, "Email"))[0];
     if (!email) continue;
     if (await tx.usuario.findUnique({ where: { email } })) {
@@ -195,7 +199,9 @@ async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
   // ----- clientes -----
   const clientes = new Map<string, string>(); // chave (cnpj ou nome) → id
   const chaveCliente = (cnpj: string | null, nome: string | null) => cnpj ?? `nome:${chaveNome(nome ?? "")}`;
-  const contatosExistentes = new Set<string>();
+  const contatosExistentes = new Set(
+    (await tx.clienteContato.findMany()).map((c) => `${c.clienteId}|${c.tipo}|${c.valor.toLowerCase()}`),
+  );
 
   async function contato(clienteId: string, tipo: TipoContato, valor: string) {
     const k = `${clienteId}|${tipo}|${valor.toLowerCase()}`;
@@ -217,10 +223,17 @@ async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
     const nome = dados.nome ?? dados.razao;
     if (!nome) return null;
     const chave = chaveCliente(cnpj, nome);
-    const existente = clientes.get(chave) ?? (cnpj ? (await tx.cliente.findUnique({ where: { cnpj } }))?.id : undefined);
+    const existente =
+      clientes.get(chave) ??
+      (cnpj
+        ? (await tx.cliente.findUnique({ where: { cnpj } }))?.id
+        : (await tx.cliente.findFirst({ where: { cnpj: null, nomeFantasia: { equals: nome, mode: "insensitive" } } }))?.id);
     if (existente) {
+      if (!clientes.has(chave)) rel.conta("Clientes já existentes (mantidos)");
       clientes.set(chave, existente);
       if (dados.razao) await tx.cliente.updateMany({ where: { id: existente, razaoSocial: null }, data: { razaoSocial: dados.razao } });
+      const gestorExistente = pessoa(dados.gestor ?? null);
+      if (gestorExistente) await tx.cliente.updateMany({ where: { id: existente, gestorId: null }, data: { gestorId: gestorExistente.id } });
       return existente;
     }
     if (!cnpj && textoDe(dados.cnpj)) rel.aviso(`Cliente "${nome}" (${dados.origem}): CNPJ "${textoDe(dados.cnpj)}" inválido, cadastrado sem CNPJ.`);
@@ -267,6 +280,21 @@ async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
       descricao: t(l, "DESCRIÇÃO DO SERVIÇO"),
     };
     if (extra.valor !== null || extra.dia !== null || extra.validade || extra.descricao) contratoDaAbaClientes.set(id, extra);
+  }
+
+  if (somenteClientes) {
+    // Só o cadastro das empresas que aparecem no funil, sem os processos.
+    for (const l of aba("baseprincipal")) {
+      const id = await garantirCliente({
+        cnpj: v(l, "CNPJ"),
+        nome: t(l, "Nome fantasia"),
+        razao: t(l, "Razão social"),
+        endereco: t(l, "Endereço completo"),
+        origem: "aba baseprincipal",
+      });
+      if (id) for (const email of emailsDe(v(l, "E-mail para envio de NF"))) await contato(id, "EMAIL_NF", email);
+    }
+    return;
   }
 
   // ----- processos (baseprincipal) -----
@@ -753,9 +781,10 @@ async function migrar(tx: Tx, abas: Map<string, Aba>, rel: Relatorio) {
 async function main() {
   const args = process.argv.slice(2);
   const aplicar = args.includes("--aplicar");
+  const somenteClientes = args.includes("--somente-clientes");
   const arquivo = args.find((a) => !a.startsWith("--"));
   if (!arquivo) {
-    console.error("Uso: npm run migrar -- caminho/da/planilha.xlsx [--aplicar]");
+    console.error("Uso: npm run migrar -- caminho/da/planilha.xlsx [--somente-clientes] [--aplicar]");
     process.exit(1);
   }
   if (!existsSync(arquivo)) {
@@ -766,7 +795,7 @@ async function main() {
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   try {
-    if (await db.configuracao.findUnique({ where: { chave: CHAVE_MIGRACAO } })) {
+    if (!somenteClientes && (await db.configuracao.findUnique({ where: { chave: CHAVE_MIGRACAO } }))) {
       console.error("A migração do AppSheet já foi gravada neste banco. Para refazer, comece de um banco vazio (npx prisma migrate reset).");
       process.exit(1);
     }
@@ -774,7 +803,7 @@ async function main() {
       console.error("O banco ainda não tem as etapas do funil. Rode antes: npm run db:seed");
       process.exit(1);
     }
-    const existentes = await db.processo.count();
+    const existentes = somenteClientes ? 0 : await db.processo.count();
     if (existentes) {
       console.error(`O banco já tem ${existentes} processo(s) cadastrados. A migração precisa de um funil vazio para não duplicar dados.`);
       process.exit(1);
@@ -783,7 +812,7 @@ async function main() {
     console.log(`Lendo ${arquivo}...`);
     const abas = await lerPlanilha(arquivo);
     const rel = new Relatorio();
-    const faltam = ["baseprincipal", "Clientes", "historico"].filter((a) => !abas.has(chaveColuna(a)));
+    const faltam = (somenteClientes ? ["baseprincipal", "Clientes"] : ["baseprincipal", "Clientes", "historico"]).filter((a) => !abas.has(chaveColuna(a)));
     if (faltam.length) {
       console.error(`A planilha não tem as abas: ${faltam.join(", ")}. Confira se é o arquivo baixado do AppSheet.`);
       process.exit(1);
@@ -792,8 +821,9 @@ async function main() {
     try {
       await db.$transaction(
         async (tx) => {
-          await migrar(tx, abas, rel);
+          await migrar(tx, abas, rel, somenteClientes);
           if (!aplicar) throw new Simulacao();
+          if (somenteClientes) return;
           await tx.configuracao.create({
             data: { chave: CHAVE_MIGRACAO, valor: { em: new Date().toISOString(), arquivo: path.basename(arquivo) }, descricao: "Controle interno: migração do AppSheet já feita." },
           });
