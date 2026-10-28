@@ -22,6 +22,7 @@ enum Modulo {
   MAPA_COMERCIALIZACAO
   CADASTROS
   USUARIOS
+  PLANEJAMENTO
 }
 
 model Usuario {
@@ -44,20 +45,23 @@ model Usuario {
   checklistConcluido      ProcessoChecklist[]
   ciclosEncerrados        ProcessoCiclo[]
   visitas                 Visita[]
+  visitasAgendadas        Visita[]                 @relation("VisitaAgendadaPor")
   solicitacoesResponsavel SolicitacaoEscritorio[]  @relation("SolicitacaoResponsavel")
   solicitacoesValidadas   SolicitacaoEscritorio[]  @relation("SolicitacaoValidador")
   arquivosEnviados        Arquivo[]
+  colunaPlanejamento      PlanejamentoColuna?
 
   @@map("usuarios")
 }
 
 model Perfil {
-  id           String            @id @default(uuid()) @db.Uuid
-  nome         String            @unique
+  id           String              @id @default(uuid()) @db.Uuid
+  nome         String              @unique
   descricao    String?
   permissoes   PerfilPermissao[]
   usuarios     UsuarioPerfil[]
   etapasEdicao EtapaPerfil[]
+  planejamento PlanejamentoPerfil?
 
   @@map("perfis")
 }
@@ -364,6 +368,7 @@ enum TipoNotificacao {
   DOCUMENTO_VENCENDO
   VISITA_ATRASADA
   CONTRATO_VENCENDO
+  VISITA_AGENDADA
 }
 
 model Notificacao {
@@ -439,28 +444,66 @@ model Setor {
   @@map("setores")
 }
 
+/// Agendada: cartão do Planejamento ainda não iniciado (inicio = horário previsto).
+/// Em andamento: iniciada (inicio = hora real). Concluída: finalizada, conta no ciclo.
+enum StatusVisita {
+  AGENDADA
+  EM_ANDAMENTO
+  CONCLUIDA
+}
+
 model Visita {
-  id                 String         @id @default(uuid()) @db.Uuid
-  processoId         String         @map("processo_id") @db.Uuid
-  cicloId            String?        @map("ciclo_id") @db.Uuid
-  tecnicoId          String?        @map("tecnico_id") @db.Uuid
+  id                 String            @id @default(uuid()) @db.Uuid
+  processoId         String            @map("processo_id") @db.Uuid
+  cicloId            String?           @map("ciclo_id") @db.Uuid
+  tecnicoId          String?           @map("tecnico_id") @db.Uuid
+  status             StatusVisita      @default(CONCLUIDA)
+  /// Horário planejado no Planejamento; fica guardado mesmo depois de iniciar.
+  agendadaPara       DateTime?         @map("agendada_para")
+  agendadaPorId      String?           @map("agendada_por_id") @db.Uuid
   inicio             DateTime
   fim                DateTime?
   realizado          String?
-  recebidoPor        String?        @map("recebido_por")
-  placasColadas      Boolean?       @map("placas_coladas")
-  fichasTecnicas     Boolean?       @map("fichas_tecnicas")
-  infoNutricional    Boolean?       @map("info_nutricional")
+  recebidoPor        String?           @map("recebido_por")
+  placasColadas      Boolean?          @map("placas_coladas")
+  fichasTecnicas     Boolean?          @map("fichas_tecnicas")
+  infoNutricional    Boolean?          @map("info_nutricional")
   cardapios          Boolean?
-  teveInconformidade Boolean        @default(false) @map("teve_inconformidade")
+  teveInconformidade Boolean           @default(false) @map("teve_inconformidade")
   inconformidades    String?
-  processo           Processo       @relation(fields: [processoId], references: [id], onDelete: Cascade)
-  ciclo              ProcessoCiclo? @relation(fields: [cicloId], references: [id], onDelete: SetNull)
-  tecnico            Usuario?       @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+  processo           Processo          @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  ciclo              ProcessoCiclo?    @relation(fields: [cicloId], references: [id], onDelete: SetNull)
+  tecnico            Usuario?          @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+  agendadaPor        Usuario?          @relation("VisitaAgendadaPor", fields: [agendadaPorId], references: [id], onDelete: SetNull)
   planosAcao         PlanoAcao[]
+  checklist          VisitaChecklist[]
+  arquivos           Arquivo[]
 
   @@index([processoId, inicio])
+  @@index([inicio])
   @@map("visitas")
+}
+
+/// Itens marcados ao finalizar uma visita (cadastrados pelo administrador).
+model ChecklistVisitaItem {
+  id        String            @id @default(uuid()) @db.Uuid
+  descricao String            @unique
+  ordem     Int               @default(0)
+  ativo     Boolean           @default(true)
+  visitas   VisitaChecklist[]
+
+  @@map("checklist_visita_itens")
+}
+
+/// Uma linha por item marcado na visita.
+model VisitaChecklist {
+  visitaId String              @map("visita_id") @db.Uuid
+  itemId   String              @map("item_id") @db.Uuid
+  visita   Visita              @relation(fields: [visitaId], references: [id], onDelete: Cascade)
+  item     ChecklistVisitaItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([visitaId, itemId])
+  @@map("visita_checklist")
 }
 
 enum StatusPlanoAcao {
@@ -564,6 +607,8 @@ model Arquivo {
   id                      String                 @id @default(uuid()) @db.Uuid
   processoId              String?                @map("processo_id") @db.Uuid
   solicitacaoEscritorioId String?                @map("solicitacao_escritorio_id") @db.Uuid
+  /// Fotos tiradas ao finalizar uma visita (também aparecem no processo).
+  visitaId                String?                @map("visita_id") @db.Uuid
   categoria               CategoriaArquivo
   tipo                    String?
   descricao               String?
@@ -576,9 +621,11 @@ model Arquivo {
   criadoEm                DateTime               @default(now()) @map("criado_em")
   processo                Processo?              @relation(fields: [processoId], references: [id], onDelete: Cascade)
   solicitacaoEscritorio   SolicitacaoEscritorio? @relation(fields: [solicitacaoEscritorioId], references: [id], onDelete: Cascade)
+  visita                  Visita?                @relation(fields: [visitaId], references: [id], onDelete: SetNull)
   enviadoPor              Usuario?               @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
 
   @@index([processoId])
+  @@index([visitaId])
   @@index([validade])
   @@map("arquivos")
 }
@@ -633,4 +680,26 @@ model CampoProcesso {
   perfisVisiveis  String[] @map("perfis_visiveis") @db.Uuid
 
   @@map("campos_processo")
+}
+
+// Planejamento (quadro de visitas): o que cada perfil pode fazer nos cartões.
+// Sem linha para o perfil: pode tudo, desde que tenha o módulo Planejamento. Administrador pode sempre.
+model PlanejamentoPerfil {
+  perfilId  String  @id @map("perfil_id") @db.Uuid
+  criar     Boolean @default(true)
+  mover     Boolean @default(true)
+  iniciar   Boolean @default(true)
+  finalizar Boolean @default(true)
+  perfil    Perfil  @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@map("planejamento_perfis")
+}
+
+// Usuários que aparecem como colunas (consultores) no Planejamento, na ordem escolhida.
+model PlanejamentoColuna {
+  usuarioId String  @id @map("usuario_id") @db.Uuid
+  ordem     Int     @default(0)
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("planejamento_colunas")
 }

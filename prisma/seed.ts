@@ -43,6 +43,7 @@ const TODOS: Modulo[] = [
   "FUNIL",
   "CLIENTES",
   "VISITAS",
+  "PLANEJAMENTO",
   "SOLICITACOES",
   "MAPA_COMERCIALIZACAO",
   "CADASTROS",
@@ -59,7 +60,7 @@ const PERFIS: { nome: string; descricao: string; modulos: Modulo[] }[] = [
   {
     nome: "Técnico",
     descricao: "Coleta de dados, visitas técnicas e solicitações.",
-    modulos: ["PAINEL", "FUNIL", "CLIENTES", "VISITAS", "SOLICITACOES"],
+    modulos: ["PAINEL", "FUNIL", "CLIENTES", "VISITAS", "PLANEJAMENTO", "SOLICITACOES"],
   },
 ];
 

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { ErroValidacao, inteiro, marcado, texto, textoObrigatorio, type EstadoForm } from "@/lib/form";
 import { CAMPOS_PROCESSO } from "@/lib/funil/campos";
 import { MENU } from "@/lib/modulos";
+import { ACOES_CARTAO, type PermissoesCartao } from "@/lib/planejamento/regras";
 
 export type ListaSimples = "motivos" | "servicos" | "documentacao";
 
@@ -197,5 +198,48 @@ export async function salvarCamposSensiveis(_: EstadoForm, f: FormData): Promise
       }),
     );
     return { ok: "Campos sensíveis salvos." };
+  });
+}
+
+// ─── Planejamento ─────────────────────────────────────────────────────────
+
+/** O que cada perfil pode fazer nos cartões. Checkbox "perfil:acao". */
+export async function salvarPermissoesPlanejamento(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("USUARIOS", async () => {
+    const perfis = await db.perfil.findMany({ select: { id: true } });
+    const marcados = new Set(f.getAll("pode").filter((v): v is string => typeof v === "string"));
+    await db.$transaction(
+      perfis.map(({ id }) => {
+        const regra = Object.fromEntries(ACOES_CARTAO.map((a) => [a.chave, marcados.has(`${id}:${a.chave}`)])) as PermissoesCartao;
+        return db.planejamentoPerfil.upsert({ where: { perfilId: id }, update: regra, create: { perfilId: id, ...regra } });
+      }),
+    );
+    return { ok: "Permissões do planejamento salvas." };
+  });
+}
+
+/** Usuários que aparecem como colunas do quadro, com a ordem. */
+export async function salvarColunasPlanejamento(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("USUARIOS", async () => {
+    const ativos = new Set((await db.usuario.findMany({ where: { ativo: true }, select: { id: true } })).map((u) => u.id));
+    const escolhidos = f.getAll("coluna").filter((v): v is string => typeof v === "string" && ativos.has(v));
+    const dados = escolhidos.map((usuarioId) => ({ usuarioId, ordem: inteiro(f, `ordem:${usuarioId}`) ?? 0 }));
+    await db.$transaction([db.planejamentoColuna.deleteMany(), db.planejamentoColuna.createMany({ data: dados })]);
+    return { ok: dados.length ? "Colunas do quadro salvas." : "Nenhum escolhido: o quadro mostra os usuários com perfil Técnico." };
+  });
+}
+
+export async function adicionarChecklistVisita(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("CADASTROS", async () => {
+    const ultimo = await db.checklistVisitaItem.findFirst({ orderBy: { ordem: "desc" } });
+    await db.checklistVisitaItem.create({ data: { descricao: textoObrigatorio(f, "descricao", "Item"), ordem: (ultimo?.ordem ?? -1) + 1 } });
+    return { ok: "Item adicionado." };
+  });
+}
+
+export async function alternarChecklistVisita(id: string, _: EstadoForm): Promise<EstadoForm> {
+  return comModulo("CADASTROS", async () => {
+    const item = await db.checklistVisitaItem.findUniqueOrThrow({ where: { id } });
+    await db.checklistVisitaItem.update({ where: { id }, data: { ativo: !item.ativo } });
   });
 }

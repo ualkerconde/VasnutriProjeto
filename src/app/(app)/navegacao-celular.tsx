@@ -13,6 +13,7 @@ const ICONES: Record<string, ReactNode> = {
   "/funil": <path d="M3 5h18l-7 8v6l-4 2v-8z" />,
   "/clientes": <path d="M16 19v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M9.5 10a3 3 0 100-6 3 3 0 000 6zM21 19v-1a4 4 0 00-3-3.9M16 4.1a3 3 0 010 5.8" />,
   "/visitas": <path d="M8 3v3M16 3v3M4 9h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM9 15l2 2 4-4" />,
+  "/planejamento": <path d="M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v7h-4z" />,
   "/solicitacoes": <path d="M9 4h6v3H9zM7 5H5v15h14V5h-2M8 12h8M8 16h5" />,
   "/mapa": <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14" />,
   "/cadastros": <path d="M4 6h16M4 12h16M4 18h10" />,

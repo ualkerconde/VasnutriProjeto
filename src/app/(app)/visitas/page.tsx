@@ -4,6 +4,7 @@ import { CabecalhoPagina, Cartao, EstadoVazio, Selo, Tabela } from "@/components
 import { exigirModulo } from "@/lib/auth/sessao";
 import { fmtData, fmtDataHora } from "@/lib/datas";
 import { db } from "@/lib/db";
+import { ROTULO_STATUS_VISITA } from "@/lib/planejamento/regras";
 import { ciclosEmAndamento, situacaoCiclo } from "@/lib/visitas";
 
 export const metadata: Metadata = { title: "Visitas" };
@@ -13,6 +14,7 @@ export default async function Visitas() {
   const [ciclos, recentes] = await Promise.all([
     ciclosEmAndamento(),
     db.visita.findMany({
+      where: { inicio: { lte: new Date() } },
       orderBy: { inicio: "desc" },
       take: 20,
       include: { processo: { include: { cliente: { select: { nomeFantasia: true } } } }, tecnico: { select: { nome: true } } },
@@ -85,6 +87,7 @@ export default async function Visitas() {
                   <span className="font-semibold">{v.processo.cliente.nomeFantasia}</span>
                   <span className="text-suave">{fmtDataHora(v.inicio)}</span>
                   {v.tecnico && <span className="text-suave">· {v.tecnico.nome}</span>}
+                  {v.status !== "CONCLUIDA" && <Selo cor={v.status === "EM_ANDAMENTO" ? "ambar" : "cinza"}>{ROTULO_STATUS_VISITA[v.status]}</Selo>}
                   {v.teveInconformidade && <Selo cor="ambar">Inconformidades</Selo>}
                 </Link>
               </li>
