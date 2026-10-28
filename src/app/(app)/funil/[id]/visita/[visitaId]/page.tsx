@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { opcoes, usuariosAtivos } from "@/lib/listas";
 import { excluirVisita, salvarVisita } from "../../acoes-tecnicas";
 import { FormVisita } from "../form-visita";
+import { TravaProcesso } from "../../trava";
 
 export const metadata: Metadata = { title: "Visita" };
 
@@ -32,35 +33,37 @@ export default async function EditarVisita({ params }: PageProps<"/funil/[id]/vi
           </LinkBotao>
         }
       />
-      <Cartao>
-        <FormVisita
-          acao={salvarVisita.bind(null, id, visita.id)}
-          tecnicos={opcoes(usuarios, (u) => u.nome)}
-          inclui={{
-            fichas: p.incluiFichasTecnicas || visita.fichasTecnicas !== null,
-            info: p.incluiInfoNutricional || visita.infoNutricional !== null,
-            cardapios: p.incluiCardapios || visita.cardapios !== null,
-          }}
-          visita={{
-            inicio: paraInputDataHora(visita.inicio),
-            fim: paraInputDataHora(visita.fim),
-            tecnicoId: visita.tecnicoId ?? "",
-            realizado: visita.realizado ?? "",
-            recebidoPor: visita.recebidoPor ?? "",
-            placasColadas: visita.placasColadas,
-            fichasTecnicas: visita.fichasTecnicas,
-            infoNutricional: visita.infoNutricional,
-            cardapios: visita.cardapios,
-            teveInconformidade: visita.teveInconformidade,
-            inconformidades: visita.inconformidades ?? "",
-          }}
-        />
-      </Cartao>
-      <Cartao titulo="Excluir visita">
-        <BotaoAcao acao={excluirVisita.bind(null, id, visita.id)} variante="perigo" confirmar="Excluir esta visita?">
-          Excluir visita
-        </BotaoAcao>
-      </Cartao>
+      <TravaProcesso processoId={id}>
+        <Cartao>
+          <FormVisita
+            acao={salvarVisita.bind(null, id, visita.id)}
+            tecnicos={opcoes(usuarios, (u) => u.nome)}
+            inclui={{
+              fichas: p.incluiFichasTecnicas || visita.fichasTecnicas !== null,
+              info: p.incluiInfoNutricional || visita.infoNutricional !== null,
+              cardapios: p.incluiCardapios || visita.cardapios !== null,
+            }}
+            visita={{
+              inicio: paraInputDataHora(visita.inicio),
+              fim: paraInputDataHora(visita.fim),
+              tecnicoId: visita.tecnicoId ?? "",
+              realizado: visita.realizado ?? "",
+              recebidoPor: visita.recebidoPor ?? "",
+              placasColadas: visita.placasColadas,
+              fichasTecnicas: visita.fichasTecnicas,
+              infoNutricional: visita.infoNutricional,
+              cardapios: visita.cardapios,
+              teveInconformidade: visita.teveInconformidade,
+              inconformidades: visita.inconformidades ?? "",
+            }}
+          />
+        </Cartao>
+        <Cartao titulo="Excluir visita">
+          <BotaoAcao acao={excluirVisita.bind(null, id, visita.id)} variante="perigo" confirmar="Excluir esta visita?">
+            Excluir visita
+          </BotaoAcao>
+        </Cartao>
+      </TravaProcesso>
     </>
   );
 }

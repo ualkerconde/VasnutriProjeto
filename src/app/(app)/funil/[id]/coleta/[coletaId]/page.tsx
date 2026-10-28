@@ -6,6 +6,7 @@ import { exigirModulo } from "@/lib/auth/sessao";
 import { paraInputData } from "@/lib/datas";
 import { db } from "@/lib/db";
 import { adicionarSetor, excluirColeta, removerSetor, salvarColeta, salvarSetor } from "../../acoes-tecnicas";
+import { TravaProcesso } from "../../trava";
 
 export const metadata: Metadata = { title: "Coleta de dados" };
 
@@ -79,63 +80,65 @@ export default async function Coleta({ params }: PageProps<"/funil/[id]/coleta/[
           </LinkBotao>
         }
       />
+      <TravaProcesso processoId={id}>
 
-      <Cartao titulo="Formulário">
-        <Formulario acao={salvarColeta.bind(null, coleta.id)} botao="Salvar coleta">
-          <Campo rotulo="Data de preenchimento" nome="dataPreenchimento" type="date" defaultValue={paraInputData(coleta.dataPreenchimento)} className="max-w-xs" />
-          {GRUPOS.map((g) => (
-            <fieldset key={g.titulo} className="flex flex-col gap-3 border-t border-linha pt-4">
-              <legend className="pr-2 font-display text-base font-bold">{g.titulo}</legend>
-              <Grade>
-                {g.campos.map(([nome, rotulo, longo]) =>
-                  longo ? (
-                    <AreaTexto key={nome} rotulo={rotulo} nome={nome} rows={2} defaultValue={valores[nome] ?? ""} />
-                  ) : (
-                    <Campo key={nome} rotulo={rotulo} nome={nome} defaultValue={valores[nome] ?? ""} />
-                  ),
-                )}
-              </Grade>
-            </fieldset>
-          ))}
-        </Formulario>
-      </Cartao>
+        <Cartao titulo="Formulário">
+          <Formulario acao={salvarColeta.bind(null, coleta.id)} botao="Salvar coleta">
+            <Campo rotulo="Data de preenchimento" nome="dataPreenchimento" type="date" defaultValue={paraInputData(coleta.dataPreenchimento)} className="max-w-xs" />
+            {GRUPOS.map((g) => (
+              <fieldset key={g.titulo} className="flex flex-col gap-3 border-t border-linha pt-4">
+                <legend className="pr-2 font-display text-base font-bold">{g.titulo}</legend>
+                <Grade>
+                  {g.campos.map(([nome, rotulo, longo]) =>
+                    longo ? (
+                      <AreaTexto key={nome} rotulo={rotulo} nome={nome} rows={2} defaultValue={valores[nome] ?? ""} />
+                    ) : (
+                      <Campo key={nome} rotulo={rotulo} nome={nome} defaultValue={valores[nome] ?? ""} />
+                    ),
+                  )}
+                </Grade>
+              </fieldset>
+            ))}
+          </Formulario>
+        </Cartao>
 
-      <Cartao titulo={`Setores do estabelecimento (${coleta.setores.length})`}>
-        <div className="flex flex-col gap-3">
-          {coleta.setores.map((s) => (
-            <details key={s.id} className="rounded-xl bg-fundo p-3">
-              <summary className="cursor-pointer text-sm font-semibold">
-                {s.nome}
-                <span className="ml-2 font-normal text-suave">{[s.piso, s.parede, s.teto].filter(Boolean).join(" · ")}</span>
-              </summary>
-              <div className="mt-3 flex flex-col gap-3">
-                <Formulario acao={salvarSetor.bind(null, s.id)} variante="secundario">
-                  <CamposSetor setor={s} />
-                </Formulario>
-                <div>
-                  <BotaoAcao acao={removerSetor.bind(null, s.id)} variante="perigo" confirmar="Remover este setor?">
-                    Remover setor
-                  </BotaoAcao>
+        <Cartao titulo={`Setores do estabelecimento (${coleta.setores.length})`}>
+          <div className="flex flex-col gap-3">
+            {coleta.setores.map((s) => (
+              <details key={s.id} className="rounded-xl bg-fundo p-3">
+                <summary className="cursor-pointer text-sm font-semibold">
+                  {s.nome}
+                  <span className="ml-2 font-normal text-suave">{[s.piso, s.parede, s.teto].filter(Boolean).join(" · ")}</span>
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <Formulario acao={salvarSetor.bind(null, s.id)} variante="secundario">
+                    <CamposSetor setor={s} />
+                  </Formulario>
+                  <div>
+                    <BotaoAcao acao={removerSetor.bind(null, s.id)} variante="perigo" confirmar="Remover este setor?">
+                      Remover setor
+                    </BotaoAcao>
+                  </div>
                 </div>
+              </details>
+            ))}
+            <details className="rounded-xl border border-dashed border-linha p-3" open={coleta.setores.length === 0}>
+              <summary className="cursor-pointer text-sm font-semibold">Adicionar setor</summary>
+              <div className="mt-3">
+                <Formulario acao={adicionarSetor.bind(null, coleta.id)} botao="Adicionar setor" variante="secundario" limparAoSalvar>
+                  <CamposSetor />
+                </Formulario>
               </div>
             </details>
-          ))}
-          <details className="rounded-xl border border-dashed border-linha p-3" open={coleta.setores.length === 0}>
-            <summary className="cursor-pointer text-sm font-semibold">Adicionar setor</summary>
-            <div className="mt-3">
-              <Formulario acao={adicionarSetor.bind(null, coleta.id)} botao="Adicionar setor" variante="secundario" limparAoSalvar>
-                <CamposSetor />
-              </Formulario>
-            </div>
-          </details>
-        </div>
-      </Cartao>
+          </div>
+        </Cartao>
 
-      <Cartao titulo="Excluir coleta">
-        <BotaoAcao acao={excluirColeta.bind(null, id, coleta.id)} variante="perigo" confirmar="Excluir esta coleta e os setores dela?">
-          Excluir coleta
-        </BotaoAcao>
-      </Cartao>
+        <Cartao titulo="Excluir coleta">
+          <BotaoAcao acao={excluirColeta.bind(null, id, coleta.id)} variante="perigo" confirmar="Excluir esta coleta e os setores dela?">
+            Excluir coleta
+          </BotaoAcao>
+        </Cartao>
+      </TravaProcesso>
     </>
   );
 }

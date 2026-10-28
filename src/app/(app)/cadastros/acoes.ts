@@ -5,6 +5,7 @@ import { comModulo } from "@/lib/acao";
 import { CONFIGURACOES, type ChaveConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 import { ErroValidacao, inteiro, marcado, texto, textoObrigatorio, type EstadoForm } from "@/lib/form";
+import { CAMPOS_PROCESSO } from "@/lib/funil/campos";
 import { MENU } from "@/lib/modulos";
 
 export type ListaSimples = "motivos" | "servicos" | "documentacao";
@@ -103,8 +104,15 @@ export async function salvarPermissoes(perfilId: string, _: EstadoForm, f: FormD
 
 export async function criarPerfil(_: EstadoForm, f: FormData): Promise<EstadoForm> {
   return comModulo("USUARIOS", async () => {
+    const etapas = await db.etapa.findMany({ select: { id: true } });
     await db.perfil.create({
-      data: { nome: textoObrigatorio(f, "nome", "Nome do perfil"), descricao: texto(f, "descricao"), permissoes: { create: { modulo: "PAINEL" } } },
+      data: {
+        nome: textoObrigatorio(f, "nome", "Nome do perfil"),
+        descricao: texto(f, "descricao"),
+        permissoes: { create: { modulo: "PAINEL" } },
+        // Começa podendo alterar processos em todas as etapas, como os outros perfis.
+        etapasEdicao: { create: etapas.map((e) => ({ etapaId: e.id })) },
+      },
     });
     return { ok: "Perfil criado. Marque os módulos dele abaixo." };
   });
@@ -129,5 +137,65 @@ export async function salvarConfiguracoes(_: EstadoForm, f: FormData): Promise<E
       });
     }
     return { ok: "Configurações salvas." };
+  });
+}
+
+// ─── Permissões do funil ──────────────────────────────────────────────────
+
+/** Regra 1: quais perfis podem alterar processos em cada etapa. Checkbox "etapa:perfil". */
+export async function salvarPermissoesEtapas(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("USUARIOS", async () => {
+    const [etapas, perfis] = await Promise.all([db.etapa.findMany({ select: { id: true } }), db.perfil.findMany({ select: { id: true } })]);
+    const etapaIds = new Set(etapas.map((e) => e.id));
+    const perfilIds = new Set(perfis.map((p) => p.id));
+    const dados = f
+      .getAll("permissao")
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => {
+        const [etapa, perfilId] = v.split(":");
+        return { etapaId: Number(etapa), perfilId };
+      })
+      .filter((d) => etapaIds.has(d.etapaId) && perfilIds.has(d.perfilId));
+    await db.$transaction([db.etapaPerfil.deleteMany(), db.etapaPerfil.createMany({ data: dados })]);
+    return { ok: "Permissões por etapa salvas." };
+  });
+}
+
+/** Regra 2: em quais etapas cada campo pode ser editado. Checkbox "campo:etapa". */
+export async function salvarEdicaoCampos(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("USUARIOS", async () => {
+    const marcados = f.getAll("editavel").filter((v): v is string => typeof v === "string");
+    await db.$transaction(
+      CAMPOS_PROCESSO.map(({ chave }) => {
+        const etapasEditaveis = marcados.filter((m) => m.startsWith(`${chave}:`)).map((m) => Number(m.split(":")[1]));
+        return db.campoProcesso.upsert({ where: { chave }, update: { etapasEditaveis }, create: { chave, etapasEditaveis } });
+      }),
+    );
+    return { ok: "Edição dos campos por etapa salva." };
+  });
+}
+
+/** Regra 3: campos sensíveis e os perfis que podem vê-los. */
+export async function salvarCamposSensiveis(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("USUARIOS", async () => {
+    const [etapas, perfis] = await Promise.all([db.etapa.findMany({ select: { id: true } }), db.perfil.findMany({ select: { id: true } })]);
+    const perfilIds = new Set(perfis.map((p) => p.id));
+    const sensiveis = new Set(f.getAll("sensivel").filter((v): v is string => typeof v === "string"));
+    const quemVe = f.getAll("ve").filter((v): v is string => typeof v === "string");
+    await db.$transaction(
+      CAMPOS_PROCESSO.map(({ chave }) => {
+        const sensivel = sensiveis.has(chave);
+        const perfisVisiveis = quemVe
+          .filter((m) => m.startsWith(`${chave}:`))
+          .map((m) => m.split(":")[1])
+          .filter((id) => perfilIds.has(id));
+        return db.campoProcesso.upsert({
+          where: { chave },
+          update: { sensivel, perfisVisiveis },
+          create: { chave, sensivel, perfisVisiveis, etapasEditaveis: etapas.map((e) => e.id) },
+        });
+      }),
+    );
+    return { ok: "Campos sensíveis salvos." };
   });
 }
