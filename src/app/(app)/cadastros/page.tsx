@@ -8,6 +8,7 @@ import { MENU } from "@/lib/modulos";
 import { adicionarChecklist, alternarChecklist, criarPerfil, salvarConfiguracoes, salvarPermissoes } from "./acoes";
 import { EdicaoListaSimples } from "./lista-simples";
 import { PermissoesFunil } from "./permissoes-funil";
+import { CadastroPlanejamento } from "./planejamento";
 
 export const metadata: Metadata = { title: "Cadastros" };
 
@@ -18,6 +19,7 @@ const SECOES = [
   ["checklist", "Checklist por etapa"],
   ["perfis", "Perfis e permissões"],
   ["permissoes-funil", "Permissões do funil"],
+  ["planejamento", "Planejamento"],
   ["configuracoes", "Configurações"],
 ] as const;
 
@@ -25,7 +27,7 @@ export default async function Cadastros() {
   const usuario = await exigirModulo("CADASTROS");
   const gerePerfis = usuario.modulos.includes("USUARIOS");
 
-  const [motivos, servicos, documentacoes, etapas, perfis, configs, permissoesEtapa, camposConfig] = await Promise.all([
+  const [motivos, servicos, documentacoes, etapas, perfis, configs, permissoesEtapa, camposConfig, regrasPlanejamento, colunasPlanejamento, checklistVisita, usuarios] = await Promise.all([
     db.motivoRecusa.findMany({ orderBy: [{ ativo: "desc" }, { descricao: "asc" }] }),
     db.servico.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
     db.tipoDocumentacao.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
@@ -34,6 +36,10 @@ export default async function Cadastros() {
     lerTodasConfigs(),
     db.etapaPerfil.findMany(),
     db.campoProcesso.findMany(),
+    db.planejamentoPerfil.findMany(),
+    db.planejamentoColuna.findMany(),
+    db.checklistVisitaItem.findMany({ orderBy: [{ ordem: "asc" }, { descricao: "asc" }] }),
+    db.usuario.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, perfis: { select: { perfil: { select: { nome: true } } } } } }),
   ]);
 
   return (
@@ -135,6 +141,15 @@ export default async function Cadastros() {
           configs={camposConfig}
         />
       )}
+
+      <CadastroPlanejamento
+        gerePerfis={gerePerfis}
+        perfis={perfis}
+        regras={regrasPlanejamento}
+        usuarios={usuarios.map((u) => ({ id: u.id, nome: u.nome, perfis: u.perfis.map((p) => p.perfil.nome) }))}
+        colunas={colunasPlanejamento}
+        checklist={checklistVisita}
+      />
 
       <Cartao id="configuracoes" titulo="Configurações" className="max-w-3xl">
         <Formulario acao={salvarConfiguracoes} botao="Salvar configurações">

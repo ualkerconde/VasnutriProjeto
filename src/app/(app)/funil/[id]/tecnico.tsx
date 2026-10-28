@@ -5,6 +5,7 @@ import { fmtData, fmtDataHora, hoje, paraInputData } from "@/lib/datas";
 import { db } from "@/lib/db";
 import { ETAPA, situacaoVisitas } from "@/lib/funil/regras";
 import { opcoes } from "@/lib/listas";
+import { ROTULO_STATUS_VISITA } from "@/lib/planejamento/regras";
 import {
   adicionarPlano,
   ajustarCiclo,
@@ -45,7 +46,9 @@ export async function SecoesTecnicas({
   const etapa = processo.etapaAtualId;
   const ciclo = processo.ciclos.find((c) => !c.encerradoEm);
   const hojeData = hoje();
-  const visitasDoCiclo = ciclo ? visitas.filter((v) => v.cicloId === ciclo.id).length : 0;
+  // Só visitas finalizadas contam; as agendadas no Planejamento aparecem na lista com o status.
+  const concluidas = visitas.filter((v) => v.status === "CONCLUIDA");
+  const visitasDoCiclo = ciclo ? concluidas.filter((v) => v.cicloId === ciclo.id).length : 0;
   const situacao = ciclo
     ? situacaoVisitas({ inicio: ciclo.inicio, fimPrevisto: ciclo.fimPrevisto, contratadas: processo.visitasContratadas, feitas: visitasDoCiclo, hoje: hojeData })
     : null;
@@ -113,7 +116,7 @@ export async function SecoesTecnicas({
           <ul className="flex flex-col gap-2 text-sm">
             {ciclosAnteriores.map((c) => (
               <li key={c.id} className="rounded-xl bg-fundo px-3 py-2">
-                <strong>Ciclo {c.numero}</strong>: {fmtData(c.inicio)} a {fmtData(c.fimPrevisto)} · {visitas.filter((v) => v.cicloId === c.id).length} visita(s) · encerrado em{" "}
+                <strong>Ciclo {c.numero}</strong>: {fmtData(c.inicio)} a {fmtData(c.fimPrevisto)} · {concluidas.filter((v) => v.cicloId === c.id).length} visita(s) · encerrado em{" "}
                 {fmtDataHora(c.encerradoEm)}
                 {c.encerradoPor && ` por ${c.encerradoPor.nome}`}
               </li>
@@ -169,6 +172,7 @@ export async function SecoesTecnicas({
                     <span className="font-semibold">{fmtDataHora(v.inicio)}</span>
                     {v.fim && <span className="text-suave">{Math.round((v.fim.getTime() - v.inicio.getTime()) / 60000)} min</span>}
                     {v.tecnico && <span className="text-suave">· {v.tecnico.nome}</span>}
+                    {v.status !== "CONCLUIDA" && <Selo cor={v.status === "EM_ANDAMENTO" ? "ambar" : "cinza"}>{ROTULO_STATUS_VISITA[v.status]}</Selo>}
                     {v.ciclo && <Selo>Ciclo {v.ciclo.numero}</Selo>}
                     {v.teveInconformidade && <Selo cor="ambar">Inconformidades</Selo>}
                   </span>

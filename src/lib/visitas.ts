@@ -22,8 +22,8 @@ export async function ciclosEmAndamento() {
       const ciclo = p.ciclos[0] ?? null;
       const [feitas, ultima] = ciclo
         ? await Promise.all([
-            db.visita.count({ where: { cicloId: ciclo.id } }),
-            db.visita.findFirst({ where: { processoId: p.id }, orderBy: { inicio: "desc" }, select: { inicio: true } }),
+            db.visita.count({ where: { cicloId: ciclo.id, status: "CONCLUIDA" } }),
+            db.visita.findFirst({ where: { processoId: p.id, status: "CONCLUIDA" }, orderBy: { inicio: "desc" }, select: { inicio: true } }),
           ])
         : [0, null];
       const situacao = ciclo

@@ -79,10 +79,11 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 | Processo (parte técnica) | Coleta de dados com setores, visitas, plano de ação, pedidos de documento, placas, fotos e anexos |
 | Clientes | Cadastro com CNPJ, endereço, contatos, serviços e gestor; "ativo" vem do contrato vigente |
 | Visitas | Clientes na etapa 11 com visitas feitas x esperadas no ciclo e atrasos |
+| Planejamento | Agenda semanal estilo Trello: uma coluna por consultor, cartões = visitas do processo; arrastar ou "Mover" troca o consultor; Iniciar e Finalizar (resumo, checklist e fotos) |
 | Solicitações | Pedidos ao escritório com responsável, prazo, validação e anexos |
 | Mapa de comercialização | Quem já pediu o mapa no ciclo, com botão para reiniciar o ciclo |
 | Notificações | Mudanças de etapa, orçamento parado, contrato ou documento vencendo, visita atrasada, prazos |
-| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis, permissões do funil e configurações |
+| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis, permissões do funil, planejamento (colunas, permissões dos cartões, checklist da visita) e configurações |
 | Usuários | Usuários, perfis, ativar/desativar e redefinir senha |
 
 Os avisos automáticos são gerados quando alguém abre o sistema (no máximo uma vez por hora),

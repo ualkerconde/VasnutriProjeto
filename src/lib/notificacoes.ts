@@ -10,7 +10,7 @@ export type NovaNotificacao = {
   tipo: TipoNotificacao;
   titulo: string;
   mensagem?: string | null;
-  entidade?: "processo" | "solicitacao" | "arquivo";
+  entidade?: "processo" | "solicitacao" | "arquivo" | "visita";
   entidadeId?: string;
 };
 
@@ -37,6 +37,8 @@ export function linkDaNotificacao(n: { entidade: string | null; entidadeId: stri
       return `/funil/${n.entidadeId}`;
     case "solicitacao":
       return `/solicitacoes/${n.entidadeId}`;
+    case "visita":
+      return `/planejamento?visita=${n.entidadeId}`;
     default:
       return null;
   }
