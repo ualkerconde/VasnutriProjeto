@@ -10,23 +10,25 @@ type Aviso = { tipo: "ok" | "alerta" | "erro"; texto: string };
 
 const corAviso = { ok: "text-verde", alerta: "text-ambar-texto", erro: "text-[#9A2B12]" };
 
-/** Escreve os dados da Receita nos campos do formulário. O nome fantasia só é preenchido se estiver vazio. */
-function preencher(form: HTMLFormElement, dados: DadosCnpj) {
-  const definir = (nome: string, valor: string | null, soSeVazio = false) => {
-    const campo = form.elements.namedItem(nome);
-    if (!(campo instanceof HTMLInputElement || campo instanceof HTMLSelectElement)) return;
-    if (soSeVazio && campo.value.trim() !== "") return;
-    campo.value = valor ?? "";
+const CAMPOS_RECEITA = ["nomeFantasia", "razaoSocial", "logradouro", "numero", "complemento", "bairro", "cidade", "uf", "cep"] as const;
+
+/** Apaga os campos vindos da Receita e escreve os da nova consulta (sem dados = limpa tudo). */
+function preencher(form: HTMLFormElement, dados: DadosCnpj | null) {
+  const valores: Record<(typeof CAMPOS_RECEITA)[number], string | null> = {
+    nomeFantasia: dados ? (dados.nomeFantasia ?? dados.razaoSocial) : null,
+    razaoSocial: dados?.razaoSocial ?? null,
+    logradouro: dados?.logradouro ?? null,
+    numero: dados?.numero ?? null,
+    complemento: dados?.complemento ?? null,
+    bairro: dados?.bairro ?? null,
+    cidade: dados?.cidade ?? null,
+    uf: dados?.uf ?? null,
+    cep: dados?.cep ?? null,
   };
-  definir("nomeFantasia", dados.nomeFantasia ?? dados.razaoSocial, true);
-  definir("razaoSocial", dados.razaoSocial);
-  definir("logradouro", dados.logradouro);
-  definir("numero", dados.numero);
-  definir("complemento", dados.complemento);
-  definir("bairro", dados.bairro);
-  definir("cidade", dados.cidade);
-  definir("uf", dados.uf);
-  definir("cep", dados.cep);
+  for (const nome of CAMPOS_RECEITA) {
+    const campo = form.elements.namedItem(nome);
+    if (campo instanceof HTMLInputElement || campo instanceof HTMLSelectElement) campo.value = valores[nome] ?? "";
+  }
 }
 
 /** Campo de CNPJ que busca os dados da empresa na Receita Federal ao completar os 14 números. */
@@ -44,9 +46,10 @@ export function CampoCnpj({ valorInicial }: { valorInicial: string }) {
     }
     ultimaConsulta.current = cnpj;
     setAviso(null);
+    const form = ref.current?.closest("form");
+    if (form) preencher(form, null);
     iniciar(async () => {
       const r = await consultarCnpj(cnpj);
-      const form = ref.current?.closest("form");
       if (r.erro !== undefined || !form) {
         setAviso({ tipo: "erro", texto: r.erro ?? "Não foi possível preencher." });
         return;
