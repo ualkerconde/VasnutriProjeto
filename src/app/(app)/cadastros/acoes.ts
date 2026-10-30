@@ -2,16 +2,18 @@
 
 import type { Modulo } from "@/generated/prisma/enums";
 import { comModulo } from "@/lib/acao";
+import { apagarArquivo, salvarArquivo } from "@/lib/armazenamento";
 import { CONFIGURACOES, type ChaveConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 import { ErroValidacao, inteiro, marcado, texto, textoObrigatorio, type EstadoForm } from "@/lib/form";
 import { CAMPOS_PROCESSO } from "@/lib/funil/campos";
+import { CHAVE_LOGOTIPO, lerLogotipo, TIPOS_LOGOTIPO } from "@/lib/logotipo";
 import { MENU } from "@/lib/modulos";
 import { ACOES_CARTAO, type PermissoesCartao } from "@/lib/planejamento/regras";
 
-export type ListaSimples = "motivos" | "servicos" | "documentacao";
+export type ListaSimples = "motivos" | "servicos" | "documentacao" | "categorias";
 
-// As três listas têm o mesmo formato: um texto e "ativo".
+// As listas têm o mesmo formato: um texto e "ativo".
 function tabela(lista: ListaSimples) {
   switch (lista) {
     case "motivos":
@@ -41,6 +43,15 @@ function tabela(lista: ListaSimples) {
           return db.tipoDocumentacao.update({ where: { id }, data: { ativo: !item.ativo } });
         },
       };
+    case "categorias":
+      return {
+        criar: (v: string) => db.categoriaDespesa.create({ data: { nome: v } }),
+        renomear: (id: string, v: string) => db.categoriaDespesa.update({ where: { id }, data: { nome: v } }),
+        alternar: async (id: string) => {
+          const item = await db.categoriaDespesa.findUniqueOrThrow({ where: { id } });
+          return db.categoriaDespesa.update({ where: { id }, data: { ativo: !item.ativo } });
+        },
+      };
   }
 }
 
@@ -49,6 +60,7 @@ const MODULOS_LISTA: Record<ListaSimples, Modulo[]> = {
   motivos: ["CADASTROS", "FUNIL"],
   servicos: ["CADASTROS"],
   documentacao: ["CADASTROS"],
+  categorias: ["CADASTROS"],
 };
 
 export async function adicionarItem(lista: ListaSimples, _: EstadoForm, f: FormData): Promise<EstadoForm> {
@@ -241,5 +253,35 @@ export async function alternarChecklistVisita(id: string, _: EstadoForm): Promis
   return comModulo("CADASTROS", async () => {
     const item = await db.checklistVisitaItem.findUniqueOrThrow({ where: { id } });
     await db.checklistVisitaItem.update({ where: { id }, data: { ativo: !item.ativo } });
+  });
+}
+
+// ─── Aparência ────────────────────────────────────────────────────────────
+
+export async function enviarLogotipo(_: EstadoForm, f: FormData): Promise<EstadoForm> {
+  return comModulo("CADASTROS", async () => {
+    const arquivo = f.get("logotipo");
+    if (!(arquivo instanceof File) || arquivo.size === 0) throw new ErroValidacao("Escolha a imagem do logotipo.");
+    if (!TIPOS_LOGOTIPO.includes(arquivo.type)) throw new ErroValidacao("Envie o logotipo em PNG, JPG, WEBP ou GIF.");
+    if (arquivo.size > 2 * 1024 * 1024) throw new ErroValidacao("O logotipo pode ter no máximo 2 MB.");
+    const anterior = await lerLogotipo();
+    const salvo = await salvarArquivo(arquivo);
+    const valor = { caminho: salvo.caminho, mime: salvo.mime, versao: Date.now().toString(36) };
+    await db.configuracao.upsert({
+      where: { chave: CHAVE_LOGOTIPO },
+      update: { valor },
+      create: { chave: CHAVE_LOGOTIPO, valor, descricao: "Logotipo exibido no menu e no login." },
+    });
+    if (anterior) await apagarArquivo(anterior.caminho);
+    return { ok: "Logotipo atualizado." };
+  });
+}
+
+export async function removerLogotipo(_: EstadoForm): Promise<EstadoForm> {
+  return comModulo("CADASTROS", async () => {
+    const anterior = await lerLogotipo();
+    await db.configuracao.deleteMany({ where: { chave: CHAVE_LOGOTIPO } });
+    if (anterior) await apagarArquivo(anterior.caminho);
+    return { ok: "Logotipo removido." };
   });
 }

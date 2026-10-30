@@ -79,6 +79,7 @@ export default async function Planejamento({ searchParams }: PageProps<"/planeja
     itensChecklist: v._count.checklist,
     fotos: v._count.arquivos,
     atrasada: v.status === "AGENDADA" && v.inicio < agora,
+    duracaoPrevistaMin: v.duracaoPrevistaMin,
   }));
 
   const contagem = { AGENDADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 };

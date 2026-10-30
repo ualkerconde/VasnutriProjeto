@@ -5,6 +5,7 @@ import { useCallback, useEffect, useOptimistic, useRef, useState, useTransition,
 import { BotaoAcao, Formulario } from "@/components/formulario";
 import { AreaTexto, Campo, Caixa, classeBotao, Grade, Selecao, Selo } from "@/components/ui";
 import type { StatusVisita } from "@/generated/prisma/enums";
+import { fmtDuracao } from "@/lib/formato";
 import { proximasAcoes, ROTULO_STATUS_VISITA, type PermissoesCartao } from "@/lib/planejamento/regras";
 import { agendarVisita, cancelarVisita, finalizarVisita, iniciarVisita, moverVisita, moverVisitaForm } from "./acoes";
 
@@ -23,6 +24,7 @@ export type CartaoVisita = {
   itensChecklist: number;
   fotos: number;
   atrasada: boolean;
+  duracaoPrevistaMin: number | null;
 };
 
 type Pessoa = { id: string; nome: string };
@@ -33,6 +35,13 @@ const fuso = "America/Sao_Paulo";
 const fmtHora = new Intl.DateTimeFormat("pt-BR", { timeZone: fuso, hour: "2-digit", minute: "2-digit" });
 const fmtDia = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "2-digit" });
 const COR_STATUS = { AGENDADA: "cinza", EM_ANDAMENTO: "ambar", CONCLUIDA: "verde" } as const;
+const OPCOES_DURACAO = [30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480].map((m) => ({ valor: m, rotulo: fmtDuracao(m) }));
+
+function CampoDuracao({ valor, vazio }: { valor?: number | null; vazio: string }) {
+  // Mantém um valor fora da lista (ex.: 100 min) como opção.
+  const opcoes = valor && !OPCOES_DURACAO.some((o) => o.valor === valor) ? [...OPCOES_DURACAO, { valor, rotulo: fmtDuracao(valor) }].sort((a, b) => a.valor - b.valor) : OPCOES_DURACAO;
+  return <Selecao rotulo="Tempo previsto" nome="duracaoPrevistaMin" defaultValue={valor ?? ""} vazio={vazio} opcoes={opcoes} />;
+}
 
 type Janela =
   | { tipo: "agendar"; tecnicoId: string }
@@ -199,6 +208,7 @@ export function QuadroPlanejamento({
                 opcoes={consultores.map((p) => ({ valor: p.id, rotulo: p.nome }))}
               />
               <Campo rotulo="Dia e hora" nome="inicio" type="datetime-local" required defaultValue={sugestaoInicio} />
+              <CampoDuracao vazio="Carga horária do contrato" />
             </Grade>
             <AreaTexto rotulo="Observação (opcional)" nome="observacao" rows={2} placeholder="Ex.: levar pasta de visita" />
           </Formulario>
@@ -216,7 +226,10 @@ export function QuadroPlanejamento({
               opcoes={consultores.map((p) => ({ valor: p.id, rotulo: p.nome }))}
             />
             {janela.cartao.status === "AGENDADA" && (
-              <Campo rotulo="Dia e hora" nome="inicio" type="datetime-local" required defaultValue={janela.cartao.inicioInput} />
+              <Grade>
+                <Campo rotulo="Dia e hora" nome="inicio" type="datetime-local" required defaultValue={janela.cartao.inicioInput} />
+                <CampoDuracao valor={janela.cartao.duracaoPrevistaMin} vazio="Sem tempo previsto" />
+              </Grade>
             )}
           </Formulario>
           {pode.criar && proximasAcoes(janela.cartao.status).cancelar && (
@@ -299,7 +312,12 @@ function Cartao({
       {c.local && <span className="-mt-1 truncate text-xs text-suave">{c.local}</span>}
       <span className="flex flex-wrap gap-1.5">
         <Selo cor={c.atrasada ? "vermelho" : COR_STATUS[c.status]}>{c.atrasada ? "Atrasada" : ROTULO_STATUS_VISITA[c.status]}</Selo>
-        {c.status === "CONCLUIDA" && duracao !== null && <Selo>{duracao} min</Selo>}
+        {c.status !== "CONCLUIDA" && c.duracaoPrevistaMin && <Selo>Prev. {fmtDuracao(c.duracaoPrevistaMin)}</Selo>}
+        {c.status === "CONCLUIDA" && duracao !== null && (
+          <Selo cor={!c.duracaoPrevistaMin ? "cinza" : Math.abs(duracao - c.duracaoPrevistaMin) <= c.duracaoPrevistaMin * 0.15 ? "verde" : "ambar"}>
+            {c.duracaoPrevistaMin ? `${fmtDuracao(duracao)} de ${fmtDuracao(c.duracaoPrevistaMin)} prev.` : fmtDuracao(duracao)}
+          </Selo>
+        )}
         {c.itensChecklist > 0 && <Selo>✓ {c.itensChecklist}</Selo>}
         {c.fotos > 0 && <Selo>{c.fotos} foto(s)</Selo>}
       </span>

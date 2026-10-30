@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Marca } from "@/components/marca";
+import { MarcaEmpresa } from "@/components/marca-empresa";
 import { usuarioAtual } from "@/lib/auth/sessao";
 import { FormularioLogin } from "./formulario-login";
 
@@ -28,7 +28,7 @@ export default async function PaginaLogin() {
     <div className="flex min-h-screen flex-wrap bg-tinta">
       <section className="fundo-grade relative flex min-w-0 flex-[1_1_620px] flex-col justify-between gap-14 overflow-hidden px-6 py-10 text-claro sm:px-14 sm:py-12">
         <div className="flex flex-wrap items-center gap-3">
-          <Marca />
+          <MarcaEmpresa tamanho={36} altura={48} />
           <span className="rounded-full border border-claro/20 px-2.5 py-1 font-mono text-[11px] tracking-[0.08em] text-claro-2">
             SEGURANÇA ALIMENTAR
           </span>

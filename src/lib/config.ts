@@ -15,8 +15,23 @@ export const CONFIGURACOES = {
   },
   dias_aviso_fim_contrato: {
     padrao: 30,
-    rotulo: "Avisar fim do contrato com antecedência de (dias)",
-    descricao: "Notifica o responsável antes do fim do ciclo do contrato.",
+    rotulo: "Avisar vencimento do contrato com antecedência de (dias)",
+    descricao: "Notifica o gestor do cliente e o responsável pelo processo antes do fim do contrato, para renovar.",
+  },
+  meses_marco_relacionamento: {
+    padrao: 6,
+    rotulo: "Avisar tempo de contrato a cada (meses)",
+    descricao: "Ex.: 6 avisa o gestor aos 6 meses, 1 ano, 1 ano e meio… de contrato, para estreitar a relação. 0 desliga.",
+  },
+  dias_sem_movimentacao: {
+    padrao: 15,
+    rotulo: "Processo sem movimentação há (dias)",
+    descricao: "No painel, entra nos itens críticos o processo sem nenhuma mudança por mais tempo que isso (fora de Visitas técnicas).",
+  },
+  dias_sem_visita: {
+    padrao: 30,
+    rotulo: "Cliente sem visita há (dias)",
+    descricao: "No painel, clientes em Visitas técnicas sem visita concluída nesse período.",
   },
   dias_aviso_validade_documento: {
     padrao: 30,

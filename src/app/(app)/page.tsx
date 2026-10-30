@@ -6,7 +6,7 @@ import { exigirModulo } from "@/lib/auth/sessao";
 import { fmtData, tempoRelativo } from "@/lib/datas";
 import { dataPorExtenso, formatarDias, primeiroNome, saudacao } from "@/lib/formato";
 import { linkDaNotificacao } from "@/lib/notificacoes";
-import { dadosDoPainel } from "@/lib/painel";
+import { dadosDoPainel, itensCriticos, type CardCritico } from "@/lib/painel";
 import { situacaoCiclo } from "@/lib/visitas";
 import { abrirNotificacao } from "./notificacoes/acoes";
 
@@ -15,8 +15,9 @@ export const metadata: Metadata = { title: "Painel" };
 export default async function Painel({ searchParams }: PageProps<"/">) {
   const usuario = await exigirModulo("PAINEL");
   const { "sem-acesso": semAcesso } = await searchParams;
-  const dados = await dadosDoPainel(usuario.id);
   const agora = new Date();
+  const [dados, criticos] = await Promise.all([dadosDoPainel(usuario.id), itensCriticos(usuario.modulos, agora)]);
+  const pendentes = criticos.filter((c) => c.quantidade > 0).length;
   const maior = Math.max(1, ...dados.funil.map((l) => l.quantidade));
 
   const indicadores = [
@@ -56,6 +57,26 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
           </h1>
         </div>
       </header>
+
+      {criticos.length > 0 && (
+        <section aria-labelledby="titulo-criticos" className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="titulo-criticos" className="font-display text-[22px] font-bold tracking-[-0.02em]">
+              Atenção agora
+            </h2>
+            <span className="text-[13px] text-suave">
+              {pendentes === 0 ? "Tudo em dia" : `${pendentes} de ${criticos.length} ponto(s) pedem ação`}
+            </span>
+          </div>
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr))]">
+            {[...criticos]
+              .sort((a, b) => Number(b.quantidade > 0) - Number(a.quantidade > 0) || Number(b.gravidade === "alta") - Number(a.gravidade === "alta"))
+              .map((c, i) => (
+                <CartaoCritico key={c.chave} card={c} atraso={i * 50} />
+              ))}
+          </div>
+        </section>
+      )}
 
       <section aria-label="Indicadores" className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {indicadores.map((k, i) => (
@@ -196,5 +217,49 @@ export default async function Painel({ searchParams }: PageProps<"/">) {
         </Cartao>
       )}
     </>
+  );
+}
+
+function CartaoCritico({ card: c, atraso }: { card: CardCritico; atraso: number }) {
+  const ok = c.quantidade === 0;
+  const cor = ok ? "bg-menta" : c.gravidade === "alta" ? "bg-[#E0703F]" : "bg-ambar";
+  return (
+    <article
+      style={{ animationDelay: `${atraso}ms` }}
+      className={`animate-subir flex min-w-0 flex-col gap-3 rounded-[22px] border bg-superficie p-5 ${
+        ok ? "border-[#E1E9E4]" : c.gravidade === "alta" ? "border-[#F3C5B8]" : "border-[#F2DDB0]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`size-2.5 flex-none rounded-full ${cor}`} />
+          <h3 className="text-sm leading-snug font-semibold text-texto-2">{c.titulo}</h3>
+        </div>
+        <span className={`font-display text-[32px] leading-none font-extrabold tracking-[-0.03em] ${ok ? "text-verde" : ""}`}>{c.quantidade}</span>
+      </div>
+      {c.destaque && <span className="-mt-1 font-mono text-sm font-semibold text-[#9A2B12]">{c.destaque}</span>}
+      {ok ? (
+        <p className="text-[13px] text-suave">Tudo em dia.</p>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-1">
+            {c.itens.map((item) => (
+              <li key={item.id}>
+                <Link href={item.href} className="flex flex-col rounded-lg px-2 py-1.5 -mx-2 hover:bg-fundo">
+                  <span className="truncate text-sm font-semibold">{item.titulo}</span>
+                  <span className="truncate text-xs text-suave">{item.detalhe}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-auto text-xs text-suave">{c.descricao}</p>
+        </>
+      )}
+      {!ok && c.href && (
+        <Link href={c.href} className="text-[13px] font-semibold text-verde">
+          Ver tudo
+        </Link>
+      )}
+    </article>
   );
 }

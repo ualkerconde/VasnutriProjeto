@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataPorExtenso, formatarDias, primeiroNome, saudacao } from "./formato";
+import { dataPorExtenso, fmtDuracao, formatarDias, primeiroNome, saudacao } from "./formato";
 
 describe("formato", () => {
   it("cumprimenta conforme o horário de Brasília", () => {
@@ -19,5 +19,14 @@ describe("formato", () => {
 
   it("pega o primeiro nome", () => {
     expect(primeiroNome("Pedro Tirello")).toBe("Pedro");
+  });
+});
+
+describe("fmtDuracao", () => {
+  it("mostra minutos e horas", () => {
+    expect(fmtDuracao(45)).toBe("45 min");
+    expect(fmtDuracao(95)).toBe("1h35");
+    expect(fmtDuracao(120)).toBe("2h");
+    expect(fmtDuracao(null)).toBe("—");
   });
 });

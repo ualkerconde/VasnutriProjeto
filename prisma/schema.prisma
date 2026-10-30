@@ -23,6 +23,9 @@ enum Modulo {
   CADASTROS
   USUARIOS
   PLANEJAMENTO
+  FINANCEIRO
+  DESPESAS
+  INDICADORES
 }
 
 model Usuario {
@@ -50,6 +53,9 @@ model Usuario {
   solicitacoesValidadas   SolicitacaoEscritorio[]  @relation("SolicitacaoValidador")
   arquivosEnviados        Arquivo[]
   colunaPlanejamento      PlanejamentoColuna?
+  movimentosFeitos        ProcessoEtapaHistorico[] @relation("HistoricoAutor")
+  despesas                Despesa[]
+  parcelasBaixadas        Parcela[]
 
   @@map("usuarios")
 }
@@ -141,6 +147,7 @@ model Cliente {
   processos              Processo[]
   solicitacoesEscritorio SolicitacaoEscritorio[]
   solicitacoesMapa       SolicitacaoMapa[]
+  despesas               Despesa[]
 
   @@index([nomeFantasia])
   @@map("clientes")
@@ -256,6 +263,7 @@ model Processo {
   solicitacoesDocumentos SolicitacaoDocumento[]
   solicitacoesEscritorio SolicitacaoEscritorio[]
   arquivos               Arquivo[]
+  parcelas               Parcela[]
 
   @@index([clienteId])
   @@index([etapaAtualId])
@@ -298,10 +306,13 @@ model ProcessoEtapaHistorico {
   inicio        DateTime  @default(now())
   fim           DateTime?
   responsavelId String?   @map("responsavel_id") @db.Uuid
+  /// Quem fez a mudança de etapa (conta nas ações do funcionário).
+  autorId       String?   @map("autor_id") @db.Uuid
   motivo        String?
   processo      Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
   etapa         Etapa     @relation(fields: [etapaId], references: [id])
   responsavel   Usuario?  @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  autor         Usuario?  @relation("HistoricoAutor", fields: [autorId], references: [id], onDelete: SetNull)
 
   @@index([processoId, inicio])
   @@map("processo_etapas_historico")
@@ -369,6 +380,8 @@ enum TipoNotificacao {
   VISITA_ATRASADA
   CONTRATO_VENCENDO
   VISITA_AGENDADA
+  CONTRATO_MARCO
+  PARCELA_VENCIDA
 }
 
 model Notificacao {
@@ -461,6 +474,8 @@ model Visita {
   /// Horário planejado no Planejamento; fica guardado mesmo depois de iniciar.
   agendadaPara       DateTime?         @map("agendada_para")
   agendadaPorId      String?           @map("agendada_por_id") @db.Uuid
+  /// Tempo previsto no Planejamento, para comparar com o realizado (início → fim).
+  duracaoPrevistaMin Int?              @map("duracao_prevista_min")
   inicio             DateTime
   fim                DateTime?
   realizado          String?
@@ -609,6 +624,10 @@ model Arquivo {
   solicitacaoEscritorioId String?                @map("solicitacao_escritorio_id") @db.Uuid
   /// Fotos tiradas ao finalizar uma visita (também aparecem no processo).
   visitaId                String?                @map("visita_id") @db.Uuid
+  /// Nota fiscal de uma parcela a receber.
+  parcelaId               String?                @map("parcela_id") @db.Uuid
+  /// Comprovante de uma despesa.
+  despesaId               String?                @map("despesa_id") @db.Uuid
   categoria               CategoriaArquivo
   tipo                    String?
   descricao               String?
@@ -622,10 +641,14 @@ model Arquivo {
   processo                Processo?              @relation(fields: [processoId], references: [id], onDelete: Cascade)
   solicitacaoEscritorio   SolicitacaoEscritorio? @relation(fields: [solicitacaoEscritorioId], references: [id], onDelete: Cascade)
   visita                  Visita?                @relation(fields: [visitaId], references: [id], onDelete: SetNull)
+  parcela                 Parcela?               @relation(fields: [parcelaId], references: [id], onDelete: Cascade)
+  despesa                 Despesa?               @relation(fields: [despesaId], references: [id], onDelete: Cascade)
   enviadoPor              Usuario?               @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
 
   @@index([processoId])
   @@index([visitaId])
+  @@index([parcelaId])
+  @@index([despesaId])
   @@index([validade])
   @@map("arquivos")
 }
@@ -702,4 +725,60 @@ model PlanejamentoColuna {
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("planejamento_colunas")
+}
+
+// ─── Financeiro ────────────────────────────────────────────────────────────
+
+/// Contas a receber: uma parcela mensal do contrato. A situação (a receber, vencida, recebida) é calculada.
+model Parcela {
+  id            String    @id @default(uuid()) @db.Uuid
+  processoId    String    @map("processo_id") @db.Uuid
+  /// Mês de referência (dia 1), para não gerar a mesma parcela duas vezes.
+  competencia   DateTime  @db.Date
+  vencimento    DateTime  @db.Date
+  valor         Decimal   @db.Decimal(12, 2)
+  recebidoEm    DateTime? @map("recebido_em") @db.Date
+  valorRecebido Decimal?  @map("valor_recebido") @db.Decimal(12, 2)
+  baixadoPorId  String?   @map("baixado_por_id") @db.Uuid
+  numeroNf      String?   @map("numero_nf")
+  observacao    String?
+  cancelada     Boolean   @default(false)
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+  processo      Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  baixadoPor    Usuario?  @relation(fields: [baixadoPorId], references: [id], onDelete: SetNull)
+  arquivos      Arquivo[]
+
+  @@unique([processoId, competencia])
+  @@index([vencimento])
+  @@map("parcelas")
+}
+
+model CategoriaDespesa {
+  id       String    @id @default(uuid()) @db.Uuid
+  nome     String    @unique
+  ativo    Boolean   @default(true)
+  despesas Despesa[]
+
+  @@map("categorias_despesa")
+}
+
+/// Despesa lançada pelo próprio usuário; pode ser ligada a um cliente (entra na margem dele).
+model Despesa {
+  id          String           @id @default(uuid()) @db.Uuid
+  usuarioId   String           @map("usuario_id") @db.Uuid
+  categoriaId String           @map("categoria_id") @db.Uuid
+  clienteId   String?          @map("cliente_id") @db.Uuid
+  data        DateTime         @db.Date
+  valor       Decimal          @db.Decimal(12, 2)
+  descricao   String?
+  criadoEm    DateTime         @default(now()) @map("criado_em")
+  usuario     Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  categoria   CategoriaDespesa @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  cliente     Cliente?         @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  arquivos    Arquivo[]
+
+  @@index([data])
+  @@index([usuarioId, data])
+  @@index([clienteId])
+  @@map("despesas")
 }

@@ -4,6 +4,7 @@ import { BotaoAcao } from "@/components/formulario";
 import { ItemArquivo } from "@/components/arquivos";
 import { CabecalhoPagina, Cartao, Dados, LinkBotao, Selo } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
+import { fmtDuracao } from "@/lib/formato";
 import { fmtDataHora, hoje, paraInputDataHora } from "@/lib/datas";
 import { db } from "@/lib/db";
 import { opcoes, usuariosAtivos } from "@/lib/listas";
@@ -53,6 +54,8 @@ export default async function EditarVisita({ params }: PageProps<"/funil/[id]/vi
               itens={[
                 ["Agendada para", fmtDataHora(visita.agendadaPara)],
                 ["Agendada por", visita.agendadaPor?.nome ?? "—"],
+                ["Tempo previsto", fmtDuracao(visita.duracaoPrevistaMin)],
+                ["Tempo realizado", visita.fim ? fmtDuracao((visita.fim.getTime() - visita.inicio.getTime()) / 60_000) : "—"],
                 ["Checklist", visita.checklist.length ? visita.checklist.map((c) => `✓ ${c.item.descricao}`).join("\n") : "—"],
               ]}
             />

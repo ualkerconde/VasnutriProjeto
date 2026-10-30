@@ -5,7 +5,7 @@ import { apagarArquivo, salvarArquivo } from "@/lib/armazenamento";
 import type { UsuarioAtual } from "@/lib/auth/sessao";
 import { fmtDataHora, hoje } from "@/lib/datas";
 import { db } from "@/lib/db";
-import { dataHora, ErroValidacao, texto, textoObrigatorio, type EstadoForm } from "@/lib/form";
+import { dataHora, ErroValidacao, inteiro, texto, textoObrigatorio, type EstadoForm } from "@/lib/form";
 import { cicloAberto } from "@/lib/funil/servico";
 import { notificar } from "@/lib/notificacoes";
 import { proximasAcoes } from "@/lib/planejamento/regras";
@@ -24,6 +24,14 @@ async function consultorValido(id: string | null) {
   const u = await db.usuario.findUnique({ where: { id }, select: { id: true, ativo: true } });
   if (!u?.ativo) throw new ErroValidacao("Consultor inválido.");
   return u.id;
+}
+
+/** Tempo previsto em minutos (campo do formulário); vazio = null. */
+function duracaoPrevista(f: FormData): number | null {
+  const min = inteiro(f, "duracaoPrevistaMin");
+  if (min === null) return null;
+  if (min < 5 || min > 24 * 60) throw new ErroValidacao("O tempo previsto precisa ser entre 5 minutos e 24 horas.");
+  return min;
 }
 
 async function avisarConsultor(usuario: UsuarioAtual, visita: { id: string; tecnicoId: string | null; inicio: Date }, cliente: string, titulo: string) {
@@ -52,6 +60,8 @@ export async function agendarVisita(_: EstadoForm, f: FormData): Promise<EstadoF
         status: "AGENDADA",
         agendadaPara: inicio,
         agendadaPorId: usuario.id,
+        // Sem tempo informado, vale a carga horária por visita do contrato.
+        duracaoPrevistaMin: duracaoPrevista(f) ?? (processo.cargaHorariaVisita ? processo.cargaHorariaVisita * 60 : null),
         inicio,
         realizado: texto(f, "observacao"),
       },
@@ -62,7 +72,7 @@ export async function agendarVisita(_: EstadoForm, f: FormData): Promise<EstadoF
 }
 
 /** Arrastar o cartão para outra coluna (ou usar o botão Mover). tecnicoId vazio = "A distribuir". */
-export async function moverVisita(visitaId: string, tecnicoId: string | null, inicioTexto?: string | null): Promise<EstadoForm> {
+export async function moverVisita(visitaId: string, tecnicoId: string | null, inicioTexto?: string | null, duracaoMin?: number | null): Promise<EstadoForm> {
   return comModulo("PLANEJAMENTO", async (usuario) => {
     await exigirPermissaoCartao(usuario, "mover");
     const visita = await visitaDoCartao(visitaId);
@@ -79,7 +89,12 @@ export async function moverVisita(visitaId: string, tecnicoId: string | null, in
     }
     const atualizada = await db.visita.update({
       where: { id: visitaId },
-      data: { tecnicoId: novoTecnico, inicio, ...(visita.status === "AGENDADA" ? { agendadaPara: inicio } : {}) },
+      data: {
+        tecnicoId: novoTecnico,
+        inicio,
+        ...(visita.status === "AGENDADA" ? { agendadaPara: inicio } : {}),
+        ...(duracaoMin !== undefined ? { duracaoPrevistaMin: duracaoMin } : {}),
+      },
     });
     if (novoTecnico !== visita.tecnicoId) await avisarConsultor(usuario, atualizada, visita.processo.cliente.nomeFantasia, "Visita passada para você");
     return { ok: "Cartão movido." };
@@ -87,7 +102,12 @@ export async function moverVisita(visitaId: string, tecnicoId: string | null, in
 }
 
 export async function moverVisitaForm(visitaId: string, _: EstadoForm, f: FormData): Promise<EstadoForm> {
-  return moverVisita(visitaId, texto(f, "tecnicoId"), texto(f, "inicio"));
+  try {
+    return await moverVisita(visitaId, texto(f, "tecnicoId"), texto(f, "inicio"), f.has("duracaoPrevistaMin") ? duracaoPrevista(f) : undefined);
+  } catch (erro) {
+    if (erro instanceof ErroValidacao) return { erro: erro.message };
+    throw erro;
+  }
 }
 
 export async function iniciarVisita(visitaId: string, _: EstadoForm): Promise<EstadoForm> {

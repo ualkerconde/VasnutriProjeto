@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { hoje, somarMeses } from "@/lib/datas";
+import { gerarParcelasDoCiclo } from "@/lib/financeiro/servico";
 import { notificar } from "@/lib/notificacoes";
 import { ETAPA } from "./regras";
 
@@ -28,12 +29,16 @@ export async function mudarEtapa(
       etapaId: p.para,
       inicio: agora,
       responsavelId: p.responsavelId,
+      autorId: p.autorId,
       motivo: p.motivo ?? null,
     },
   });
   await tx.processo.update({ where: { id: p.processoId }, data: { etapaAtualId: p.para, responsavelId: p.responsavelId } });
 
-  if (p.para === ETAPA.VISITAS) await abrirCicloSeNecessario(tx, p.processoId, processo.validadeContrato);
+  if (p.para === ETAPA.VISITAS) {
+    const ciclo = await abrirCicloSeNecessario(tx, p.processoId, processo.validadeContrato);
+    await gerarParcelasDoCiclo(tx, p.processoId, ciclo);
+  }
 
   await notificar(
     tx,
