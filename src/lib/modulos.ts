@@ -10,9 +10,13 @@ export type ItemMenu = {
 export const MENU: ItemMenu[] = [
   { modulo: "PAINEL", rotulo: "Painel", href: "/" },
   { modulo: "FUNIL", rotulo: "Funil", href: "/funil" },
+  { modulo: "PLANEJAMENTO", rotulo: "Planejamento", href: "/planejamento" },
   { modulo: "CLIENTES", rotulo: "Clientes", href: "/clientes" },
   { modulo: "VISITAS", rotulo: "Visitas", href: "/visitas" },
   { modulo: "SOLICITACOES", rotulo: "Solicitações", href: "/solicitacoes" },
+  { modulo: "FINANCEIRO", rotulo: "Financeiro", href: "/financeiro" },
+  { modulo: "DESPESAS", rotulo: "Despesas", href: "/despesas" },
+  { modulo: "INDICADORES", rotulo: "Indicadores", href: "/indicadores" },
   { modulo: "MAPA_COMERCIALIZACAO", rotulo: "Mapa de comercialização", href: "/mapa" },
   { modulo: "CADASTROS", rotulo: "Cadastros", href: "/cadastros" },
   { modulo: "USUARIOS", rotulo: "Usuários", href: "/usuarios" },

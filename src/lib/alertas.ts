@@ -1,8 +1,10 @@
 import "server-only";
 import type { TipoNotificacao } from "@/generated/prisma/enums";
 import { lerConfig } from "@/lib/config";
-import { fmtData, hoje, somarDias } from "@/lib/datas";
+import { filtroContratoVigente } from "@/lib/clientes";
+import { fmtData, fmtMoeda, hoje, somarDias } from "@/lib/datas";
 import { db } from "@/lib/db";
+import { descreverMeses, marcoAtingido } from "@/lib/financeiro/regras";
 import { ETAPA } from "@/lib/funil/regras";
 import { notificar, type NovaNotificacao } from "@/lib/notificacoes";
 import { ciclosEmAndamento } from "@/lib/visitas";
@@ -29,11 +31,12 @@ export async function gerarAlertasSeNecessario(agora = new Date()) {
 
 export async function gerarAlertas(agora = new Date()) {
   const hojeData = hoje(agora);
-  const [diasOrcamento, diasContrato, diasDocumento, diasSolicitacao] = await Promise.all([
+  const [diasOrcamento, diasContrato, diasDocumento, diasSolicitacao, mesesMarco] = await Promise.all([
     lerConfig("dias_orcamento_parado"),
     lerConfig("dias_aviso_fim_contrato"),
     lerConfig("dias_aviso_validade_documento"),
     lerConfig("dias_aviso_prazo_solicitacao"),
+    lerConfig("meses_marco_relacionamento"),
   ]);
   const admins = (
     await db.usuario.findMany({ where: { ativo: true, perfis: { some: { perfil: { nome: "Administrador" } } } }, select: { id: true } })
@@ -42,6 +45,12 @@ export async function gerarAlertas(agora = new Date()) {
   const avisos: NovaNotificacao[] = [];
   const para = (usuarioId: string | null | undefined, n: Omit<NovaNotificacao, "usuarioId">) => {
     for (const id of usuarioId ? [usuarioId] : admins) avisos.push({ ...n, usuarioId: id });
+  };
+  /** Gestor do cliente e responsável pelo processo (sem repetir); sem nenhum dos dois, os administradores. */
+  const paraGestores = (ids: (string | null | undefined)[], n: Omit<NovaNotificacao, "usuarioId">) => {
+    const unicos = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    if (unicos.length === 0) para(null, n);
+    for (const id of unicos) para(id, n);
   };
 
   // Orçamentos esperando aprovação há muito tempo.
@@ -63,17 +72,70 @@ export async function gerarAlertas(agora = new Date()) {
   // Fim do ciclo do contrato chegando: uma pessoa precisa confirmar o encerramento.
   const ciclos = await db.processoCiclo.findMany({
     where: { encerradoEm: null, fimPrevisto: { lte: somarDias(hojeData, diasContrato) }, processo: { etapaAtualId: ETAPA.VISITAS } },
-    include: { processo: { include: { cliente: { select: { nomeFantasia: true } } } } },
+    include: { processo: { include: { cliente: { select: { nomeFantasia: true, gestorId: true } } } } },
   });
   for (const c of ciclos) {
     const vencido = c.fimPrevisto! <= hojeData;
-    para(c.processo.responsavelId, {
+    paraGestores([c.processo.cliente.gestorId, c.processo.responsavelId], {
       tipo: "CONTRATO_VENCENDO",
-      titulo: `${c.processo.cliente.nomeFantasia}: ciclo ${c.numero} ${vencido ? "terminou" : "termina"} em ${fmtData(c.fimPrevisto)}`,
-      mensagem: "Confirme o encerramento no processo para voltar ao Agendamento de diagnóstico.",
+      titulo: `${c.processo.cliente.nomeFantasia}: contrato ${vencido ? "venceu" : "vence"} em ${fmtData(c.fimPrevisto)}`,
+      mensagem: "Converse sobre a renovação. Depois, confirme o encerramento do ciclo no processo.",
       entidade: "processo",
       entidadeId: c.processoId,
     });
+  }
+
+  // Tempo de contrato: marcos (6 meses, 1 ano…) para estreitar a relação com o cliente.
+  if (mesesMarco > 0) {
+    const vigentes = await db.processo.findMany({
+      where: filtroContratoVigente(agora),
+      select: { id: true, dataAssinatura: true, responsavelId: true, cliente: { select: { nomeFantasia: true, gestorId: true } } },
+    });
+    for (const p of vigentes) {
+      const meses = marcoAtingido(p.dataAssinatura!, hojeData, mesesMarco);
+      if (!meses) continue;
+      paraGestores([p.cliente.gestorId, p.responsavelId], {
+        tipo: "CONTRATO_MARCO",
+        titulo: `${p.cliente.nomeFantasia} completou ${descreverMeses(meses)} de contrato`,
+        mensagem: "Bom momento para um contato de relacionamento com o cliente.",
+        entidade: "processo",
+        entidadeId: p.id,
+      });
+    }
+  }
+
+  // Parcelas vencidas, uma notificação por contrato para quem cuida do financeiro.
+  const vencidas = await db.parcela.groupBy({
+    by: ["processoId"],
+    where: { cancelada: false, recebidoEm: null, vencimento: { lt: hojeData } },
+    _count: true,
+    _sum: { valor: true },
+  });
+  if (vencidas.length > 0) {
+    const financeiro = (
+      await db.usuario.findMany({
+        where: { ativo: true, perfis: { some: { perfil: { permissoes: { some: { modulo: "FINANCEIRO" } } } } } },
+        select: { id: true },
+      })
+    ).map((u) => u.id);
+    const nomes = new Map(
+      (await db.processo.findMany({ where: { id: { in: vencidas.map((v) => v.processoId) } }, select: { id: true, cliente: { select: { nomeFantasia: true } } } })).map((p) => [
+        p.id,
+        p.cliente.nomeFantasia,
+      ]),
+    );
+    for (const v of vencidas) {
+      for (const usuarioId of financeiro) {
+        avisos.push({
+          usuarioId,
+          tipo: "PARCELA_VENCIDA",
+          titulo: `${nomes.get(v.processoId) ?? "Cliente"}: ${v._count} parcela(s) vencida(s)`,
+          mensagem: fmtMoeda(v._sum.valor),
+          entidade: "financeiro",
+          entidadeId: v.processoId,
+        });
+      }
+    }
   }
 
   // Visitas abaixo do contratado no ciclo.

@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BotaoAcao } from "@/components/formulario";
-import { CabecalhoPagina, Cartao, LinkBotao } from "@/components/ui";
+import { ItemArquivo } from "@/components/arquivos";
+import { CabecalhoPagina, Cartao, Dados, LinkBotao, Selo } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
-import { fmtDataHora, paraInputDataHora } from "@/lib/datas";
+import { fmtDuracao } from "@/lib/formato";
+import { fmtDataHora, hoje, paraInputDataHora } from "@/lib/datas";
 import { db } from "@/lib/db";
 import { opcoes, usuariosAtivos } from "@/lib/listas";
+import { ROTULO_STATUS_VISITA } from "@/lib/planejamento/regras";
 import { excluirVisita, salvarVisita } from "../../acoes-tecnicas";
 import { FormVisita } from "../form-visita";
 import { TravaProcesso } from "../../trava";
@@ -16,7 +19,15 @@ export default async function EditarVisita({ params }: PageProps<"/funil/[id]/vi
   await exigirModulo("FUNIL");
   const { id, visitaId } = await params;
   const [visita, usuarios] = await Promise.all([
-    db.visita.findUnique({ where: { id: visitaId }, include: { processo: { include: { cliente: true } } } }),
+    db.visita.findUnique({
+      where: { id: visitaId },
+      include: {
+        processo: { include: { cliente: true } },
+        agendadaPor: { select: { nome: true } },
+        checklist: { include: { item: { select: { descricao: true } } } },
+        arquivos: { orderBy: { criadoEm: "asc" }, include: { enviadoPor: { select: { nome: true } } } },
+      },
+    }),
     usuariosAtivos(),
   ]);
   if (!visita || visita.processoId !== id) notFound();
@@ -33,6 +44,31 @@ export default async function EditarVisita({ params }: PageProps<"/funil/[id]/vi
           </LinkBotao>
         }
       />
+      {(visita.agendadaPara || visita.checklist.length > 0 || visita.arquivos.length > 0) && (
+        <Cartao
+          titulo="Do planejamento"
+          acoes={<Selo cor={visita.status === "CONCLUIDA" ? "verde" : visita.status === "EM_ANDAMENTO" ? "ambar" : "cinza"}>{ROTULO_STATUS_VISITA[visita.status]}</Selo>}
+        >
+          <div className="flex flex-col gap-5">
+            <Dados
+              itens={[
+                ["Agendada para", fmtDataHora(visita.agendadaPara)],
+                ["Agendada por", visita.agendadaPor?.nome ?? "—"],
+                ["Tempo previsto", fmtDuracao(visita.duracaoPrevistaMin)],
+                ["Tempo realizado", visita.fim ? fmtDuracao((visita.fim.getTime() - visita.inicio.getTime()) / 60_000) : "—"],
+                ["Checklist", visita.checklist.length ? visita.checklist.map((c) => `✓ ${c.item.descricao}`).join("\n") : "—"],
+              ]}
+            />
+            {visita.arquivos.length > 0 && (
+              <ul className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))]">
+                {visita.arquivos.map((a) => (
+                  <ItemArquivo key={a.id} arquivo={a} hoje={hoje()} />
+                ))}
+              </ul>
+            )}
+          </div>
+        </Cartao>
+      )}
       <TravaProcesso processoId={id}>
         <Cartao>
           <FormVisita

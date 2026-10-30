@@ -74,15 +74,19 @@ já instalado na 5432. Para usar outra, mude `DB_PORTA` e a porta da `DATABASE_U
 
 | Tela | Para quê |
 | --- | --- |
-| Painel | Processos por etapa, tempo médio em cada etapa, visitas do ciclo e avisos pendentes |
+| Painel | "Atenção agora" com os itens críticos (parados na etapa, sem movimentação, propostas sem resposta, parcelas vencidas, contratos vencendo, visitas atrasadas, clientes sem visita), processos por etapa, visitas do ciclo e avisos |
 | Funil | Quadro com as 12 etapas; cada processo tem orçamento, contrato, checklist, histórico, mudança e retorno de etapa |
 | Processo (parte técnica) | Coleta de dados com setores, visitas, plano de ação, pedidos de documento, placas, fotos e anexos |
 | Clientes | Cadastro com CNPJ, endereço, contatos, serviços e gestor; "ativo" vem do contrato vigente |
 | Visitas | Clientes na etapa 11 com visitas feitas x esperadas no ciclo e atrasos |
+| Planejamento | Agenda semanal estilo Trello: uma coluna por consultor, cartões = visitas do processo; arrastar ou "Mover" troca o consultor; tempo previsto x realizado; Iniciar e Finalizar (resumo, checklist e fotos) |
+| Financeiro | Painel (recebido, a receber, vencido, despesas e resultado do mês) e contas a receber: parcelas mensais do contrato, baixa e nota fiscal anexa. As parcelas são geradas sozinhas quando o contrato com valor entra em Visitas técnicas, ou à mão no contrato |
+| Despesas | Cada usuário lança as próprias despesas (categoria, valor, cliente, comprovante); quem tem o Financeiro vê as da equipe |
+| Indicadores | Rankings de faturamento, despesas e margem por cliente; funcionários com mais ações, visitas, horas em campo e despesas; painel de cada cliente (faturamento x despesas) |
 | Solicitações | Pedidos ao escritório com responsável, prazo, validação e anexos |
 | Mapa de comercialização | Quem já pediu o mapa no ciclo, com botão para reiniciar o ciclo |
 | Notificações | Mudanças de etapa, orçamento parado, contrato ou documento vencendo, visita atrasada, prazos |
-| Cadastros | Motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis, permissões do funil e configurações |
+| Cadastros | Logotipo, categorias de despesa, motivos de recusa, serviços, tipos de documentação, checklist por etapa, perfis, permissões do funil, planejamento (colunas, permissões dos cartões, checklist da visita) e configurações |
 | Usuários | Usuários, perfis, ativar/desativar e redefinir senha |
 
 Os avisos automáticos são gerados quando alguém abre o sistema (no máximo uma vez por hora),

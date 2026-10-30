@@ -43,10 +43,14 @@ const TODOS: Modulo[] = [
   "FUNIL",
   "CLIENTES",
   "VISITAS",
+  "PLANEJAMENTO",
   "SOLICITACOES",
   "MAPA_COMERCIALIZACAO",
   "CADASTROS",
   "USUARIOS",
+  "FINANCEIRO",
+  "DESPESAS",
+  "INDICADORES",
 ];
 
 const PERFIS: { nome: string; descricao: string; modulos: Modulo[] }[] = [
@@ -54,12 +58,12 @@ const PERFIS: { nome: string; descricao: string; modulos: Modulo[] }[] = [
   {
     nome: "Comercial",
     descricao: "Orçamentos, contratos, clientes e solicitações.",
-    modulos: ["PAINEL", "FUNIL", "CLIENTES", "SOLICITACOES", "MAPA_COMERCIALIZACAO"],
+    modulos: ["PAINEL", "FUNIL", "CLIENTES", "SOLICITACOES", "MAPA_COMERCIALIZACAO", "DESPESAS"],
   },
   {
     nome: "Técnico",
     descricao: "Coleta de dados, visitas técnicas e solicitações.",
-    modulos: ["PAINEL", "FUNIL", "CLIENTES", "VISITAS", "SOLICITACOES"],
+    modulos: ["PAINEL", "FUNIL", "CLIENTES", "VISITAS", "PLANEJAMENTO", "SOLICITACOES", "DESPESAS"],
   },
 ];
 

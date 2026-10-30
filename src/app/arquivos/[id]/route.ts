@@ -8,8 +8,13 @@ export async function GET(_req: Request, ctx: RouteContext<"/arquivos/[id]">) {
   if (!usuario) return new Response("Não autorizado", { status: 401 });
 
   const { id } = await ctx.params;
-  const arquivo = await db.arquivo.findUnique({ where: { id } });
+  const arquivo = await db.arquivo.findUnique({ where: { id }, include: { despesa: { select: { usuarioId: true } } } });
   if (!arquivo) return new Response("Arquivo não encontrado", { status: 404 });
+  // Notas fiscais: só o financeiro. Comprovantes: quem lançou a despesa e o financeiro.
+  const financeiro = usuario.modulos.includes("FINANCEIRO");
+  if ((arquivo.parcelaId && !financeiro) || (arquivo.despesa && arquivo.despesa.usuarioId !== usuario.id && !financeiro)) {
+    return new Response("Sem acesso", { status: 403 });
+  }
 
   try {
     const conteudo = await lerArquivo(arquivo.caminhoStorage);

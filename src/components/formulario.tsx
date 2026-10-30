@@ -16,6 +16,7 @@ export function Formulario({
   className = "",
   limparAoSalvar = false,
   confirmar,
+  aoSalvar,
 }: {
   acao: Acao;
   children?: ReactNode;
@@ -25,13 +26,16 @@ export function Formulario({
   className?: string;
   limparAoSalvar?: boolean;
   confirmar?: string;
+  /** Chamado depois de salvar sem erro (ex.: fechar a janela). */
+  aoSalvar?: () => void;
 }) {
   const [estado, executar] = useActionState(acao, {});
   const ref = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (estado.ok && limparAoSalvar) ref.current?.reset();
-  }, [estado, limparAoSalvar]);
+    if (estado.ok && !estado.erro) aoSalvar?.();
+  }, [estado, limparAoSalvar, aoSalvar]);
 
   return (
     <form

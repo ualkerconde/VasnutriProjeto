@@ -45,6 +45,11 @@ export default async function DetalheCliente({ params }: PageProps<"/clientes/[i
         acoes={
           <>
             {vigente ? <Selo cor="verde">Contrato ativo</Selo> : <Selo>Sem contrato ativo</Selo>}
+            {(usuario.modulos.includes("INDICADORES") || usuario.modulos.includes("FINANCEIRO")) && (
+              <LinkBotao href={`/indicadores/cliente/${cliente.id}`} variante="secundario">
+                Painel do cliente
+              </LinkBotao>
+            )}
             {veFunil && <LinkBotao href={`/funil/novo?cliente=${cliente.id}`}>Novo processo</LinkBotao>}
           </>
         }

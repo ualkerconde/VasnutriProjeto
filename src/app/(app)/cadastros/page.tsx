@@ -1,23 +1,29 @@
 import type { Metadata } from "next";
 import { BotaoAcao, Formulario } from "@/components/formulario";
+import { MarcaEmpresa } from "@/components/marca-empresa";
 import { CabecalhoPagina, Caixa, Campo, Cartao, Selo } from "@/components/ui";
 import { exigirModulo } from "@/lib/auth/sessao";
 import { lerTodasConfigs } from "@/lib/config";
 import { db } from "@/lib/db";
+import { lerLogotipo } from "@/lib/logotipo";
 import { MENU } from "@/lib/modulos";
-import { adicionarChecklist, alternarChecklist, criarPerfil, salvarConfiguracoes, salvarPermissoes } from "./acoes";
+import { adicionarChecklist, alternarChecklist, criarPerfil, enviarLogotipo, removerLogotipo, salvarConfiguracoes, salvarPermissoes } from "./acoes";
 import { EdicaoListaSimples } from "./lista-simples";
 import { PermissoesFunil } from "./permissoes-funil";
+import { CadastroPlanejamento } from "./planejamento";
 
 export const metadata: Metadata = { title: "Cadastros" };
 
 const SECOES = [
+  ["aparencia", "Aparência"],
   ["motivos", "Motivos de recusa"],
   ["servicos", "Serviços"],
   ["documentacao", "Documentação"],
+  ["categorias", "Categorias de despesa"],
   ["checklist", "Checklist por etapa"],
   ["perfis", "Perfis e permissões"],
   ["permissoes-funil", "Permissões do funil"],
+  ["planejamento", "Planejamento"],
   ["configuracoes", "Configurações"],
 ] as const;
 
@@ -25,7 +31,9 @@ export default async function Cadastros() {
   const usuario = await exigirModulo("CADASTROS");
   const gerePerfis = usuario.modulos.includes("USUARIOS");
 
-  const [motivos, servicos, documentacoes, etapas, perfis, configs, permissoesEtapa, camposConfig] = await Promise.all([
+  const [logotipo, categorias, motivos, servicos, documentacoes, etapas, perfis, configs, permissoesEtapa, camposConfig, regrasPlanejamento, colunasPlanejamento, checklistVisita, usuarios] = await Promise.all([
+    lerLogotipo(),
+    db.categoriaDespesa.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
     db.motivoRecusa.findMany({ orderBy: [{ ativo: "desc" }, { descricao: "asc" }] }),
     db.servico.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
     db.tipoDocumentacao.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
@@ -34,6 +42,10 @@ export default async function Cadastros() {
     lerTodasConfigs(),
     db.etapaPerfil.findMany(),
     db.campoProcesso.findMany(),
+    db.planejamentoPerfil.findMany(),
+    db.planejamentoColuna.findMany(),
+    db.checklistVisitaItem.findMany({ orderBy: [{ ordem: "asc" }, { descricao: "asc" }] }),
+    db.usuario.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, perfis: { select: { perfil: { select: { nome: true } } } } } }),
   ]);
 
   return (
@@ -48,6 +60,34 @@ export default async function Cadastros() {
         ))}
       </nav>
 
+      <Cartao id="aparencia" titulo="Aparência">
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="flex min-h-[88px] min-w-[200px] items-center justify-center rounded-2xl bg-tinta px-6 py-4 text-claro">
+            <MarcaEmpresa tamanho={30} altura={56} />
+          </div>
+          <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-3">
+            <Formulario acao={enviarLogotipo} botao={logotipo ? "Trocar logotipo" : "Enviar logotipo"} variante="secundario" limparAoSalvar>
+              <Campo
+                rotulo="Logotipo (PNG, JPG ou WEBP, até 2 MB)"
+                nome="logotipo"
+                type="file"
+                required
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                ajuda="Aparece no topo do menu e na tela de login, no lugar do nome vasnutri. Prefira fundo transparente e cores claras, porque o menu é escuro."
+                className="[&_input]:py-2"
+              />
+            </Formulario>
+            {logotipo && (
+              <div>
+                <BotaoAcao acao={removerLogotipo} variante="perigo" confirmar="Voltar para a marca padrão?">
+                  Remover logotipo
+                </BotaoAcao>
+              </div>
+            )}
+          </div>
+        </div>
+      </Cartao>
+
       <div className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr))]">
         <Cartao id="motivos" titulo="Motivos de recusa">
           <EdicaoListaSimples lista="motivos" rotuloNovo="Novo motivo" itens={motivos.map((m) => ({ id: m.id, texto: m.descricao, ativo: m.ativo }))} />
@@ -61,6 +101,9 @@ export default async function Cadastros() {
             rotuloNovo="Novo tipo de documentação"
             itens={documentacoes.map((d) => ({ id: d.id, texto: d.nome, ativo: d.ativo }))}
           />
+        </Cartao>
+        <Cartao id="categorias" titulo="Categorias de despesa">
+          <EdicaoListaSimples lista="categorias" rotuloNovo="Nova categoria" itens={categorias.map((c) => ({ id: c.id, texto: c.nome, ativo: c.ativo }))} />
         </Cartao>
       </div>
 
@@ -135,6 +178,15 @@ export default async function Cadastros() {
           configs={camposConfig}
         />
       )}
+
+      <CadastroPlanejamento
+        gerePerfis={gerePerfis}
+        perfis={perfis}
+        regras={regrasPlanejamento}
+        usuarios={usuarios.map((u) => ({ id: u.id, nome: u.nome, perfis: u.perfis.map((p) => p.perfil.nome) }))}
+        colunas={colunasPlanejamento}
+        checklist={checklistVisita}
+      />
 
       <Cartao id="configuracoes" titulo="Configurações" className="max-w-3xl">
         <Formulario acao={salvarConfiguracoes} botao="Salvar configurações">
