@@ -1,6 +1,7 @@
 import { AreaTexto, Caixa, Campo, Grade, Selecao } from "@/components/ui";
 import type { Cliente } from "@/generated/prisma/client";
 import { formatarCnpj, UFS } from "@/lib/clientes";
+import { CampoCnpj } from "./campo-cnpj";
 
 export function CamposCliente({
   cliente,
@@ -16,15 +17,9 @@ export function CamposCliente({
   return (
     <>
       <Grade>
+        <CampoCnpj valorInicial={cliente?.cnpj ? formatarCnpj(cliente.cnpj) : ""} />
         <Campo rotulo="Nome fantasia" nome="nomeFantasia" required defaultValue={cliente?.nomeFantasia} />
         <Campo rotulo="Razão social" nome="razaoSocial" defaultValue={cliente?.razaoSocial ?? ""} />
-        <Campo
-          rotulo="CNPJ"
-          nome="cnpj"
-          inputMode="numeric"
-          placeholder="00.000.000/0000-00"
-          defaultValue={cliente?.cnpj ? formatarCnpj(cliente.cnpj) : ""}
-        />
         <Selecao
           rotulo="Gestor da conta"
           nome="gestorId"
