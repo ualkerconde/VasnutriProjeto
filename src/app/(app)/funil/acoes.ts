@@ -57,7 +57,7 @@ export async function criarProcesso(_: EstadoForm, f: FormData): Promise<EstadoF
         },
       });
       await tx.processoEtapaHistorico.create({
-        data: { processoId: criado.id, etapaId: etapa, responsavelId, motivo: diretoVisitas ? "Entrou direto em Visitas técnicas" : null },
+        data: { processoId: criado.id, etapaId: etapa, responsavelId, autorId: usuario.id, motivo: diretoVisitas ? "Entrou direto em Visitas técnicas" : null },
       });
       if (diretoVisitas) await abrirCicloSeNecessario(tx, criado.id, criado.validadeContrato);
       await notificar(

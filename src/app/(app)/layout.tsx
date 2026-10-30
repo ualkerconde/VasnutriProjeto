@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Marca } from "@/components/marca";
+import { MarcaEmpresa } from "@/components/marca-empresa";
 import { gerarAlertasSeNecessario } from "@/lib/alertas";
 import { sair } from "@/lib/auth/acoes";
 import { exigirUsuario } from "@/lib/auth/sessao";
@@ -48,18 +48,23 @@ export default async function LayoutApp({ children }: LayoutProps<"/">) {
     </div>
   );
 
+  // Menu lateral com a altura da tela: a lista rola sozinha e o cartão do usuário (com o Sair) fica sempre visível.
   return (
-    <div className="flex min-h-screen flex-col bg-fundo lg:flex-row">
+    <div className="flex min-h-dvh flex-col bg-fundo lg:flex-row">
       <nav
         aria-label="Menu principal"
-        className="hidden min-w-0 flex-col bg-tinta px-4 text-claro-2 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[264px] lg:flex-none lg:gap-7 lg:py-6"
+        className="hidden min-w-0 flex-col bg-tinta text-claro-2 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[248px] lg:flex-none xl:w-[264px]"
       >
-        <Marca tamanho={30} className="px-2 text-claro" />
-        <MenuLateral itens={itens} />
-        <div className="mt-auto">{cartaoUsuario}</div>
+        <div className="flex-none px-6 pt-5 pb-4">
+          <MarcaEmpresa tamanho={30} className="text-claro" />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 [scrollbar-color:rgb(232_241_236/0.2)_transparent] [scrollbar-width:thin]">
+          <MenuLateral itens={itens} />
+        </div>
+        <div className="flex-none border-t border-claro/10 px-4 py-3">{cartaoUsuario}</div>
       </nav>
 
-      <NavegacaoCelular itens={itens} naoLidas={naoLidas} rodape={cartaoUsuario} />
+      <NavegacaoCelular itens={itens} naoLidas={naoLidas} rodape={cartaoUsuario} marca={<MarcaEmpresa tamanho={28} altura={32} className="text-claro" />} />
 
       <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pt-5 pb-28 sm:px-[clamp(16px,3vw,40px)] lg:gap-7 lg:pt-6 lg:pb-12">
         {children}
